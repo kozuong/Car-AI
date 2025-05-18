@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "948611178137",
+    "project_id": "car-ai-app-303b0",
+    "storage_bucket": "car-ai-app-303b0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:948611178137:android:5670176ea18fcbec67a208",
+        "android_client_info": {
+          "package_name": "com.example.car_ai_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCP_7StHqS1Fbe5XLFyyGb6-pRjX-OrJYI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

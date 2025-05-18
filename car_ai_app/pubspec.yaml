@@ -1,0 +1,67 @@
+name: car_ai_app
+description: A Flutter application for car analysis using AI.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  http: ^1.1.0
+  image_picker: ^1.0.4
+  shared_preferences: ^2.2.2
+  permission_handler: ^11.0.1
+  flutter_dotenv: ^5.1.0
+  path_provider: ^2.1.1
+  intl: ^0.19.0
+  cached_network_image: ^3.3.0
+  flutter_svg: ^2.0.9
+  url_launcher: ^6.2.2
+  share_plus: ^7.2.1
+  connectivity_plus: ^5.0.2
+  flutter_cache_manager: ^3.3.1
+  dio: ^5.4.0
+  flutter_staggered_grid_view: ^0.7.0
+  shimmer: ^3.0.0
+  flutter_animate: ^4.3.0
+  flutter_slidable: ^3.0.0
+  flutter_rating_bar: ^4.0.1
+  flutter_staggered_animations: ^1.1.1
+  flutter_speed_dial: ^7.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.8
+  package_info_plus: ^5.0.1
+  device_info_plus: ^9.1.1
+  flutter_secure_storage: ^9.0.0
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - .env
+    - assets/images/
+    - assets/icons/
+    - assets/translations/
+
+flutter_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/splash.png
+  android: true
+  ios: true
