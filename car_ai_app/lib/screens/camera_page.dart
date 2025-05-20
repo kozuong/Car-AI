@@ -15,6 +15,8 @@ import '../services/storage_service.dart';
 import '../models/car_model.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
+import '../services/ads_service.dart';
+import '../widgets/premium_popup.dart';
 
 class CameraPage extends StatefulWidget {
   final String langCode;
@@ -27,6 +29,13 @@ class CameraPage extends StatefulWidget {
 class _CameraPageState extends State<CameraPage> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  final AdsService _adsService = AdsService();
+
+  @override
+  void initState() {
+    super.initState();
+    _adsService.initialize();
+  }
 
   Future<void> _getImage(ImageSource source) async {
     try {
@@ -41,26 +50,69 @@ class _CameraPageState extends State<CameraPage> {
 
       final XFile? image = await _picker.pickImage(
         source: source,
-        // Không resize ở đây, sẽ resize thủ công để giữ ảnh gốc cho UI
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
       );
 
       if (image != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.langCode == 'vi' 
+                ? '⏳ Đang phân tích ảnh...'
+                : '⏳ Analyzing image...'
+            ),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+
         // Resize ảnh để gửi API, giữ ảnh gốc cho UI
         final resizedPath = await _resizeAndSaveTemp(image.path);
-        // Gửi 2 request: 1 cho tiếng Anh, 1 cho tiếng Việt
-        final resultEn = await _analyzeImageWithLang(resizedPath, 'en');
-        final resultVi = await _analyzeImageWithLang(resizedPath, 'vi');
+        
+        // Gửi request với timeout
+        final resultEn = await _analyzeImageWithLang(resizedPath, 'en')
+            .timeout(const Duration(seconds: 30), onTimeout: () {
+          return {
+            "car_name": "Timeout",
+            "year": "",
+            "price": "",
+            "interior": "",
+            "engine": "",
+            "vi": "⚠️ Quá thời gian chờ. Vui lòng thử lại.",
+            "en": "⚠️ Request timed out. Please try again."
+          };
+        });
+
+        final resultVi = await _analyzeImageWithLang(resizedPath, 'vi')
+            .timeout(const Duration(seconds: 30), onTimeout: () {
+          return {
+            "car_name": "Timeout",
+            "year": "",
+            "price": "",
+            "interior": "",
+            "engine": "",
+            "vi": "⚠️ Quá thời gian chờ. Vui lòng thử lại.",
+            "en": "⚠️ Request timed out. Please try again."
+          };
+        });
+        
         if (!mounted) return;
 
-        if (resultEn['car_name'] == 'API error' || resultEn['car_name'] == 'Exception') {
+        if (resultEn['car_name'] == 'API error' || 
+            resultEn['car_name'] == 'Exception' || 
+            resultEn['car_name'] == 'Timeout' ||
+            resultEn['car_name'] == 'Connection Error' ||
+            resultEn['car_name'] == 'No internet') {
           ErrorHandler.showErrorSnackBar(context, resultEn[widget.langCode] ?? 'Error');
           return;
         }
 
-        // Lưu vào lịch sử
+        // Lưu vào lịch sử trước
         try {
           final carModel = CarModel(
-            imagePath: image.path, // Ảnh gốc cho UI
+            imagePath: image.path,
             carName: widget.langCode == 'vi' ? resultVi['car_name'] ?? '' : resultEn['car_name'] ?? '',
             brand: widget.langCode == 'vi' ? resultVi['brand'] ?? '' : resultEn['brand'] ?? '',
             year: widget.langCode == 'vi' ? resultVi['year'] ?? '' : resultEn['year'] ?? '',
@@ -94,27 +146,14 @@ class _CameraPageState extends State<CameraPage> {
           // Lưu vào bộ sưu tập theo thương hiệu (nếu brand hợp lệ)
           final brand = carModel.brand.trim();
           if (brand.isNotEmpty && !brand.contains(RegExp(r'[\\/:*?"<>|]'))) {
-            try {
+          try {
               await StorageService().saveCarToCollection(carModel, brand);
-            } catch (e) {
+          } catch (e) {
               print('Error saving to brand collection: $e');
-            }
           }
-          
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.langCode == 'vi' 
-                  ? '✅ Đã lưu vào lịch sử và bộ sưu tập'
-                  : '✅ Saved to history and collection'
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          }
 
-          // Chuyển đến trang kết quả và quay về trang chủ
+          // Chuyển đến trang kết quả
           if (!mounted) return;
           await Navigator.push(
             context,
@@ -141,6 +180,20 @@ class _CameraPageState extends State<CameraPage> {
               ),
             ),
           );
+
+          // Sau khi hiển thị kết quả, kiểm tra và hiển thị quảng cáo
+          if (!mounted) return;
+          await _adsService.incrementScanCount();
+          
+          // Chỉ hiện popup ở lần quét đúng thứ 3
+          if (!_adsService.isPremium && _adsService.scanCount == 3) {
+            if (!mounted) return;
+            final continueWithAds = await _showPremiumPopup();
+            // Nếu chọn tiếp tục với quảng cáo thì show ad luôn
+            if (continueWithAds == true) {
+              await _adsService.showAd();
+            }
+          }
           
           // Quay về trang chủ và chuyển đến tab lịch sử
           if (!mounted) return;
@@ -186,12 +239,50 @@ class _CameraPageState extends State<CameraPage> {
         };
       }
 
+      // Kiểm tra kết nối mạng
+      try {
+        final result = await InternetAddress.lookup('google.com');
+        if (result.isEmpty || result[0].rawAddress.isEmpty) {
+          return {
+            "car_name": "No internet",
+            "year": "",
+            "price": "",
+            "interior": "",
+            "engine": "",
+            "vi": "⚠️ Không có kết nối mạng. Vui lòng kiểm tra lại.",
+            "en": "⚠️ No internet connection. Please check your connection."
+          };
+        }
+      } on SocketException catch (_) {
+        return {
+          "car_name": "No internet",
+          "year": "",
+          "price": "",
+          "interior": "",
+          "engine": "",
+          "vi": "⚠️ Không có kết nối mạng. Vui lòng kiểm tra lại.",
+          "en": "⚠️ No internet connection. Please check your connection."
+        };
+      }
+
       final request = http.MultipartRequest('POST', uri)
         ..fields['lang'] = lang
         ..files.add(await http.MultipartFile.fromPath('image', imagePath));
 
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
+      // Thêm timeout cho request
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('Request timed out');
+        },
+      );
+
+      final response = await http.Response.fromStream(streamed).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Response timed out');
+        },
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -218,16 +309,6 @@ class _CameraPageState extends State<CameraPage> {
           "en": "⚠️ Server error: ${response.statusCode}"
         };
       }
-    } on SocketException {
-      return {
-        "car_name": "Connection Error",
-        "year": "",
-        "price": "",
-        "interior": "",
-        "engine": "",
-        "vi": '🚫 Không thể kết nối đến máy chủ. Vui lòng kiểm tra:\n1. Kết nối mạng\n2. Địa chỉ IP máy chủ\n3. Cửa sổ terminal đang chạy Flask',
-        "en": '🚫 Cannot connect to server. Please check:\n1. Network connection\n2. Server IP address\n3. Flask terminal window'
-      };
     } on TimeoutException {
       return {
         "car_name": "Timeout",
@@ -235,8 +316,18 @@ class _CameraPageState extends State<CameraPage> {
         "price": "",
         "interior": "",
         "engine": "",
-        "vi": '⏱️ Quá thời gian chờ phản hồi (10 giây).\nVui lòng kiểm tra:\n1. Kết nối mạng\n2. Địa chỉ IP máy chủ\n3. Cửa sổ terminal đang chạy Flask',
-        "en": '⏱️ Response timeout (10 seconds).\nPlease check:\n1. Network connection\n2. Server IP address\n3. Flask terminal window'
+        "vi": "⚠️ Quá thời gian chờ. Vui lòng thử lại.",
+        "en": "⚠️ Request timed out. Please try again."
+      };
+    } on SocketException {
+      return {
+        "car_name": "Connection Error",
+        "year": "",
+        "price": "",
+        "interior": "",
+        "engine": "",
+        "vi": "⚠️ Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.",
+        "en": "⚠️ Cannot connect to server. Please check your network connection."
       };
     } catch (e) {
       return {
@@ -245,8 +336,8 @@ class _CameraPageState extends State<CameraPage> {
         "price": "",
         "interior": "",
         "engine": "",
-        "vi": '❌ Lỗi: $e',
-        "en": '❌ Error: $e'
+        "vi": "⚠️ Đã xảy ra lỗi: $e",
+        "en": "⚠️ An error occurred: $e"
       };
     }
   }
@@ -276,6 +367,50 @@ class _CameraPageState extends State<CameraPage> {
     final jpg = img.encodeJpg(resized, quality: 75);
     await File(tempPath).writeAsBytes(jpg);
     return tempPath;
+  }
+
+  Future<bool?> _showPremiumPopup() async {
+    // Trả về true nếu chọn tiếp tục với quảng cáo, false nếu mua premium hoặc đóng
+    return showDialog<bool?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PremiumPopup(
+        langCode: widget.langCode,
+        onContinueWithAds: () {
+          Navigator.pop(context, true);
+        },
+        onPurchase: () async {
+          Navigator.pop(context, false);
+          final success = await _adsService.purchaseRemoveAds();
+          if (success) {
+            await _adsService.setPremiumStatus(true);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  widget.langCode == 'vi'
+                    ? '✅ Cảm ơn bạn đã nâng cấp lên Premium!'
+                    : '✅ Thank you for upgrading to Premium!'
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  widget.langCode == 'vi'
+                    ? '❌ Không thể hoàn tất giao dịch. Vui lòng thử lại.'
+                    : '❌ Could not complete the transaction. Please try again.'
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+      ),
+    );
   }
 
   @override

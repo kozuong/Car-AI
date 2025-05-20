@@ -105,99 +105,86 @@ class CarDetailPage extends StatelessWidget {
                       children: [
                         Flexible(
                           child: _StatBox(
-                            value: car.power,
-                            label: isVi ? 'Công suất' : 'Power',
-                            unit: 'hp',
-                            color: Colors.blue,
-                          ),
+                          value: car.power,
+                          label: isVi ? 'Công suất' : 'Power',
+                          unit: 'hp',
+                          color: Colors.blue,
+                        ),
                         ),
                         Flexible(
                           child: _StatBox(
-                            value: car.acceleration,
-                            label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
-                            unit: 's',
-                            color: Colors.green,
-                          ),
+                          value: car.acceleration,
+                          label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
+                          unit: 's',
+                          color: Colors.green,
+                        ),
                         ),
                         Flexible(
                           child: _StatBox(
-                            value: car.topSpeed,
-                            label: isVi ? 'Tốc độ tối đa' : 'Top speed',
-                            unit: 'km/h',
-                            color: Colors.red,
+                          value: car.topSpeed,
+                          label: isVi ? 'Tốc độ tối đa' : 'Top speed',
+                          unit: 'km/h',
+                          color: Colors.red,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     // Info table
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (constraints.maxWidth < 350) {
-                          // Nếu màn hình quá nhỏ, hiển thị theo cột
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                (car.year.isNotEmpty ? car.year : '-'),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                (car.price.isNotEmpty ? car.price : '-'),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          );
-                        }
-                        // Mặc định: hiển thị theo hàng ngang với Flexible
-                        return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade200, width: 1.2),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(isVi ? 'Năm' : 'Year', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                                    Text(
-                                      car.year.isNotEmpty ? car.year : '-',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200, width: 1.2),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isVi ? 'Năm' : 'Year',
+                                  style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                                  textAlign: TextAlign.left,
                                 ),
-                              ),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(isVi ? 'Giá' : 'Price', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                                    Text(
-                                      car.price.isNotEmpty ? car.price : '-',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
+                                const SizedBox(height: 4),
+                                Text(
+                                  car.year.isNotEmpty ? car.year : '-',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                  textAlign: TextAlign.left,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        );
-                      },
+                          Container(
+                            width: 1,
+                            height: 32,
+                            color: Colors.grey.shade200,
+                            margin: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  isVi ? 'Giá' : 'Price',
+                                  style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                                  textAlign: TextAlign.right,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  car.price.isNotEmpty ? car.price : '-',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 18),
                     // Description Card (overview only)

@@ -350,10 +350,10 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
         final brandTag = (car.brand.isNotEmpty)
             ? car.brand.trim().split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1).toLowerCase() : '').join(' ')
             : '';
-
+        
         // Format power and speed based on language
-        final powerText = isVi ? '${car.power} mã lực' : '${car.power} HP';
-        final speedText = isVi ? '${car.topSpeed} km/h' : '${car.topSpeed} km/h';
+        final powerText = car.power.isNotEmpty ? car.power : '-';
+        final speedText = car.topSpeed.isNotEmpty ? car.topSpeed : '-';
         final yearText = isVi ? 'Năm ${car.year}' : 'Year ${car.year}';
 
         return GestureDetector(
@@ -413,11 +413,59 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '$yearText • $powerText • $speedText',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200, width: 1.2),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isVi ? 'Năm' : 'Year',
+                                    style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                                    textAlign: TextAlign.left,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    car.year.isNotEmpty ? car.year : '-',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                    textAlign: TextAlign.left,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 32,
+                              color: Colors.grey.shade200,
+                              margin: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    isVi ? 'Giá' : 'Price',
+                                    style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    car.price.isNotEmpty ? car.price : '-',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

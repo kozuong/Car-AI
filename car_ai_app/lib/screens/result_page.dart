@@ -86,128 +86,125 @@ class ResultPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Car name and brand
-                  if (brand.isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        brand,
-                        style: const TextStyle(
-                          color: Color(0xFF2196F3),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                  // Car name and brand (căn trái tuyệt đối)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (brand.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              brand,
+                              style: const TextStyle(
+                                color: Color(0xFF2196F3),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        Text(
+                          carName,
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                         ),
-                      ),
+                      ],
                     ),
-                  Text(
-                    carName,
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   // Main stats
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Flexible(
+                      Expanded(
                         child: _StatBox(
                           value: power,
                           label: isVi ? 'Công suất' : 'Power',
                           unit: 'hp',
                           color: Colors.blue,
+                          align: TextAlign.left,
                         ),
                       ),
-                      Flexible(
+                      Expanded(
                         child: _StatBox(
                           value: acceleration,
                           label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
                           unit: 's',
                           color: Colors.green,
+                          align: TextAlign.center,
                         ),
                       ),
-                      Flexible(
+                      Expanded(
                         child: _StatBox(
                           value: topSpeed,
                           label: isVi ? 'Tốc độ tối đa' : 'Top speed',
                           unit: 'km/h',
                           color: Colors.red,
+                          align: TextAlign.right,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   // Info table
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth < 350) {
-                        // Nếu màn hình quá nhỏ, hiển thị theo cột
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              (year.isNotEmpty ? year : '-'),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              (price.isNotEmpty ? price : '-'),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        );
-                      }
-                      // Mặc định: hiển thị theo hàng ngang với Flexible
-                      return Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200, width: 1.2),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(isVi ? 'Năm' : 'Year', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                                  Text(
-                                    year.isNotEmpty ? year : '-',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200, width: 1.2),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isVi ? 'Năm' : 'Year',
+                                style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                                textAlign: TextAlign.left,
                               ),
-                            ),
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(isVi ? 'Giá' : 'Price', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                                  Text(
-                                    price.isNotEmpty ? price : '-',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                              const SizedBox(height: 4),
+                              Text(
+                                year.isNotEmpty ? year : '-',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                textAlign: TextAlign.left,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      );
-                    },
+                        Container(
+                          width: 1,
+                          height: 32,
+                          color: Colors.grey.shade200,
+                          margin: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                isVi ? 'Giá' : 'Price',
+                                style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                                textAlign: TextAlign.right,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                price.isNotEmpty ? price : '-',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                                textAlign: TextAlign.right,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 18),
                   // Description Card
@@ -253,29 +250,70 @@ class ResultPage extends StatelessWidget {
 class _StatBox extends StatelessWidget {
   final String value, label, unit;
   final Color color;
-  const _StatBox({required this.value, required this.label, required this.unit, required this.color});
+  final TextAlign align;
+  const _StatBox({required this.value, required this.label, required this.unit, required this.color, this.align = TextAlign.left});
+
+  List<String> _splitValueAndUnit(String value, String fallbackUnit) {
+    final regex = RegExp(r'([\d.,]+)\s*([a-zA-Z%/]+)?');
+    final match = regex.firstMatch(value);
+    if (match != null) {
+      final number = match.group(1) ?? value;
+      final unit = match.group(2) ?? fallbackUnit;
+      return [number, unit];
+    }
+    return [value, fallbackUnit];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<String> parts = _splitValueAndUnit(value, unit);
+    final String number = parts[0];
+    final String unitStr = parts[1];
+    CrossAxisAlignment colAlign = CrossAxisAlignment.start;
+    MainAxisAlignment rowAlign = MainAxisAlignment.start;
+    if (align == TextAlign.center) {
+      colAlign = CrossAxisAlignment.center;
+      rowAlign = MainAxisAlignment.center;
+    } else if (align == TextAlign.right) {
+      colAlign = CrossAxisAlignment.end;
+      rowAlign = MainAxisAlignment.end;
+    }
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: colAlign,
       children: [
-        Text(
-          value.isNotEmpty ? value : '-',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          unit,
-          style: TextStyle(fontSize: 13, color: color.withOpacity(0.7)),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        Row(
+          mainAxisAlignment: rowAlign,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              number,
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color, height: 1.0),
+            ),
+            if (unitStr.isNotEmpty) ...[
+              const SizedBox(width: 2),
+              Text(
+                unitStr,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: color.withOpacity(0.85), height: 1.0),
+              ),
+            ]
+          ],
         ),
         const SizedBox(height: 2),
+        if (unitStr.isNotEmpty)
+          Text(
+            unitStr,
+            style: TextStyle(fontSize: 13, color: color.withOpacity(0.5)),
+            textAlign: align,
+          ),
+        const SizedBox(height: 3),
         Text(
           label,
           style: const TextStyle(fontSize: 13, color: Colors.black54),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          textAlign: align,
+          maxLines: 2,
+          overflow: TextOverflow.visible,
         ),
       ],
     );
