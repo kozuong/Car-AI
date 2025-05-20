@@ -25,7 +25,7 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
   List<CarBrand> brands = [];
   List<CarModel> history = [];
   bool isLoading = true;
-  CarBrand? selectedBrand;
+  String? selectedBrandName;
   final StorageService _storageService = StorageService();
   String? _historyError;
 
@@ -50,10 +50,7 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
     if (!mounted) return;
     setState(() => isLoading = true);
     try {
-      await Future.wait([
-        fetchBrands(),
-        _loadHistory(),
-      ]);
+      await _loadHistory();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -102,46 +99,6 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
     }
   }
 
-  Future<void> fetchBrands() async {
-    try {
-      final response = await http.get(Uri.parse('${AppConstants.apiBaseUrl}/brands'));
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            brands = data.map((e) => CarBrand.fromJson(e)).toList();
-          });
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.langCode == 'vi' 
-                  ? '❌ Lỗi khi tải thương hiệu: ${response.statusCode}'
-                  : '❌ Error loading brands: ${response.statusCode}'
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.langCode == 'vi' 
-                ? '❌ Lỗi khi tải thương hiệu: $e'
-                : '❌ Error loading brands: $e'
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   CarBrand? findBrandByName(String brandName) {
     return brands.firstWhere(
       (b) => b.name.toLowerCase() == brandName.toLowerCase(),
@@ -149,15 +106,15 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
     );
   }
 
-  void _onBrandSelected(CarBrand brand) {
+  void _onBrandSelected(String brand) {
     setState(() {
-      selectedBrand = brand;
+      selectedBrandName = brand;
     });
   }
 
   void _clearBrandSelection() {
     setState(() {
-      selectedBrand = null;
+      selectedBrandName = null;
     });
   }
 
@@ -261,16 +218,16 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
               AppConstants.messages[widget.langCode]!['all']!,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            selected: selectedBrand == null,
+            selected: selectedBrandName == null,
             selectedColor: const Color(0xFF2196F3),
             backgroundColor: Colors.white,
             labelStyle: TextStyle(
-              color: selectedBrand == null ? Colors.white : Colors.black,
+              color: selectedBrandName == null ? Colors.white : Colors.black,
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: selectedBrand == null ? const Color(0xFF2196F3) : Colors.grey[300]!,
+                color: selectedBrandName == null ? const Color(0xFF2196F3) : Colors.grey[300]!,
               ),
             ),
             onSelected: (_) => _clearBrandSelection(),
@@ -284,19 +241,19 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
                 '$brand ${brandCounts[brand] ?? 0}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              selected: selectedBrand?.name == brand,
+              selected: selectedBrandName == brand,
               selectedColor: const Color(0xFF2196F3),
               backgroundColor: Colors.white,
               labelStyle: TextStyle(
-                color: selectedBrand?.name == brand ? Colors.white : Colors.black,
+                color: selectedBrandName == brand ? Colors.white : Colors.black,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: selectedBrand?.name == brand ? const Color(0xFF2196F3) : Colors.grey[300]!,
+                  color: selectedBrandName == brand ? const Color(0xFF2196F3) : Colors.grey[300]!,
                 ),
               ),
-              onSelected: (_) => _onBrandSelected(findBrandByName(brand)!),
+              onSelected: (_) => _onBrandSelected(brand),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
           )),
@@ -379,8 +336,8 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
   }
 
   Widget _buildHistoryList() {
-    final filteredHistory = selectedBrand != null
-        ? history.where((car) => car.brand.toLowerCase() == selectedBrand!.name.toLowerCase()).toList()
+    final filteredHistory = selectedBrandName != null
+        ? history.where((car) => car.brand.trim().toLowerCase() == selectedBrandName!.trim().toLowerCase()).toList()
         : history;
 
     return ListView.builder(
@@ -389,6 +346,11 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
         final car = filteredHistory[index];
         final isVi = widget.langCode == 'vi';
         
+        // Chuẩn hóa brand
+        final brandTag = (car.brand.isNotEmpty)
+            ? car.brand.trim().split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1).toLowerCase() : '').join(' ')
+            : '';
+
         // Format power and speed based on language
         final powerText = isVi ? '${car.power} mã lực' : '${car.power} HP';
         final speedText = isVi ? '${car.topSpeed} km/h' : '${car.topSpeed} km/h';
@@ -426,7 +388,7 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (car.brand.isNotEmpty)
+                      if (brandTag.isNotEmpty)
                         Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -435,7 +397,7 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            car.brand,
+                            brandTag,
                             style: const TextStyle(
                               color: Color(0xFF2196F3),
                               fontWeight: FontWeight.bold,

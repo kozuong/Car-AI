@@ -42,9 +42,12 @@ class _HomePageState extends State<HomePage> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      if (index == 1) {
+        // Reload brand collection when switching to collection tab by giving a new key
+        _pages[1] = BrandCollectionPage(key: ValueKey(DateTime.now().millisecondsSinceEpoch), langCode: _currentLang);
+      }
       if (index == 2) {
-        // Reload history when switching to history tab
-        _pages[2] = HistoryPage(langCode: _currentLang);
+        _pages[2] = HistoryPage(key: ValueKey(DateTime.now().millisecondsSinceEpoch), langCode: _currentLang);
       }
     });
   }
@@ -64,7 +67,7 @@ class _HomePageState extends State<HomePage> {
       // Refresh history when returning from camera
       if (_selectedIndex == 2) {
         setState(() {
-          _pages[2] = HistoryPage(langCode: _currentLang);
+          _pages[2] = HistoryPage(key: ValueKey(DateTime.now().millisecondsSinceEpoch), langCode: _currentLang);
         });
       }
     });

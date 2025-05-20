@@ -18,6 +18,7 @@ class CarModel {
   final String interiorEn;
   final String interiorVi;
   final DateTime timestamp;
+  final String pageTitle;
 
   CarModel({
     required this.imagePath,
@@ -32,6 +33,7 @@ class CarModel {
     required this.interior,
     required this.features,
     required this.description,
+    required this.pageTitle,
     this.descriptionEn = '',
     this.descriptionVi = '',
     this.engineDetailEn = '',
@@ -61,6 +63,7 @@ class CarModel {
         'interiorEn': interiorEn,
         'interiorVi': interiorVi,
         'timestamp': timestamp.toIso8601String(),
+        'pageTitle': pageTitle,
       };
 
   factory CarModel.fromJson(Map<String, dynamic> json) => CarModel(
@@ -82,6 +85,7 @@ class CarModel {
         engineDetailVi: json['engineDetailVi'] as String? ?? '',
         interiorEn: json['interiorEn'] as String? ?? '',
         interiorVi: json['interiorVi'] as String? ?? '',
+        pageTitle: json['pageTitle'] as String? ?? 'Analysis Result',
         timestamp: json['timestamp'] != null 
             ? DateTime.parse(json['timestamp'] as String)
             : null,
@@ -110,6 +114,7 @@ class CarModel {
     String? interiorEn,
     String? interiorVi,
     DateTime? timestamp,
+    String? pageTitle,
   }) {
     return CarModel(
       imagePath: imagePath ?? this.imagePath,
@@ -131,6 +136,7 @@ class CarModel {
       interiorEn: interiorEn ?? this.interiorEn,
       interiorVi: interiorVi ?? this.interiorVi,
       timestamp: timestamp ?? this.timestamp,
+      pageTitle: pageTitle ?? this.pageTitle,
     );
   }
 } 

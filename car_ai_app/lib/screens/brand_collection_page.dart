@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../models/car_brand.dart';
 import '../config/theme.dart';
 import '../config/constants.dart';
+import '../services/storage_service.dart';
+import '../models/car_model.dart';
+import 'car_detail_page.dart';
+import 'dart:io';
 
 class BrandCollectionPage extends StatefulWidget {
   final String langCode;
@@ -12,13 +16,43 @@ class BrandCollectionPage extends StatefulWidget {
 }
 
 class _BrandCollectionPageState extends State<BrandCollectionPage> {
-  final List<CarBrand> carBrands = [
-    CarBrand(name: 'Toyota', logoUrl: 'assets/images/brands/toyota.png'),
-    CarBrand(name: 'Honda', logoUrl: 'assets/images/brands/honda.png'),
-    CarBrand(name: 'BMW', logoUrl: 'assets/images/brands/bmw.png'),
-    CarBrand(name: 'Mercedes', logoUrl: 'assets/images/brands/mercedes.png'),
-    CarBrand(name: 'Audi', logoUrl: 'assets/images/brands/audi.png'),
-  ];
+  List<String> brandNames = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBrands();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadBrands();
+  }
+
+  Future<void> _loadBrands() async {
+    setState(() => isLoading = true);
+    final brands = await StorageService().getAllBrandCollections();
+    setState(() {
+      brandNames = brands;
+      isLoading = false;
+    });
+  }
+
+  void _openBrandCollection(String brand) async {
+    final cars = await StorageService().getCollection(brand);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _BrandCarsPage(
+          brand: brand,
+          cars: cars,
+          langCode: widget.langCode,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,43 +69,39 @@ class _BrandCollectionPageState extends State<BrandCollectionPage> {
           ),
         ),
         Expanded(
-          child: GridView.builder(
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : brandNames.isEmpty
+                  ? Center(child: Text('Chưa có bộ sưu tập xe.'))
+                  : GridView.builder(
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 1.2,
+                        childAspectRatio: 1,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
-            itemCount: carBrands.length,
+                      itemCount: brandNames.length,
             itemBuilder: (context, index) {
-              final brand = carBrands[index];
+                        final brand = brandNames[index];
               return Card(
-                elevation: 2,
+                          elevation: 4,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(18),
                 ),
                 child: InkWell(
-                  onTap: () {
-                    // Handle brand selection
-                  },
-                  borderRadius: BorderRadius.circular(12),
+                            onTap: () => _openBrandCollection(brand),
+                            borderRadius: BorderRadius.circular(18),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        brand.logoUrl,
-                        height: 80,
-                        width: 80,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.directions_car, size: 80);
-                        },
-                      ),
-                      const SizedBox(height: 8),
+                                Icon(Icons.directions_car, size: 48, color: Colors.blue[400]),
+                                const SizedBox(height: 16),
                       Text(
-                        brand.name,
+                                  brand,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                                    fontSize: 20,
                         ),
                       ),
                     ],
@@ -82,6 +112,61 @@ class _BrandCollectionPageState extends State<BrandCollectionPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BrandCarsPage extends StatelessWidget {
+  final String brand;
+  final List<CarModel> cars;
+  final String langCode;
+  const _BrandCarsPage({required this.brand, required this.cars, required this.langCode});
+
+  @override
+  Widget build(BuildContext context) {
+    final isVi = langCode == 'vi';
+    return Scaffold(
+      appBar: AppBar(title: Text(brand)),
+      body: cars.isEmpty
+          ? Center(child: Text(isVi ? 'Chưa có xe nào.' : 'No cars yet.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: cars.length,
+              itemBuilder: (context, index) {
+                final car = cars[index];
+                return Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    leading: car.imagePath.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              File(car.imagePath),
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.directions_car, size: 40, color: Colors.grey),
+                            ),
+                          )
+                        : const Icon(Icons.directions_car, size: 40, color: Colors.grey),
+                    title: Text(car.carName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(car.year),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CarDetailPage(car: car, langCode: langCode),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
     );
   }
 } 

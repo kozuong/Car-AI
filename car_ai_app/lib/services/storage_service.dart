@@ -111,7 +111,8 @@ class StorageService {
   Future<void> saveCarToCollection(CarModel car, String collectionName) async {
     try {
       final prefs = await _prefs;
-      final collectionKey = '${AppConstants.collectionKey}_$collectionName';
+      final cleanName = collectionName.trim();
+      final collectionKey = '${AppConstants.collectionKey}_$cleanName';
       final collectionJson = prefs.getString(collectionKey) ?? '[]';
       
       // Validate car data
@@ -155,7 +156,8 @@ class StorageService {
   Future<List<CarModel>> getCollection(String collectionName) async {
     try {
       final prefs = await _prefs;
-      final collectionKey = '${AppConstants.collectionKey}_$collectionName';
+      final cleanName = collectionName.trim();
+      final collectionKey = '${AppConstants.collectionKey}_$cleanName';
       final collectionJson = prefs.getString(collectionKey) ?? '[]';
       
       // Parse collection
@@ -227,20 +229,33 @@ class StorageService {
     try {
       final prefs = await _prefs;
       final collectionsJson = prefs.getString(AppConstants.collectionsKey) ?? '[]';
-      
       List<String> collections;
       try {
         collections = List<String>.from(jsonDecode(collectionsJson));
       } catch (e) {
         collections = [];
       }
-
       if (!collections.contains(collectionName)) {
         collections.add(collectionName);
         await prefs.setString(AppConstants.collectionsKey, jsonEncode(collections));
       }
+      // Đảm bảo luôn có key collection dạng collectionKey_collectionName
+      final collectionKey = '${AppConstants.collectionKey}_$collectionName';
+      if (!prefs.containsKey(collectionKey)) {
+        await prefs.setString(collectionKey, '[]');
+      }
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<List<String>> getAllBrandCollections() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    final brandKeys = keys.where((k) => k.startsWith('${AppConstants.collectionKey}_')).toList();
+    return brandKeys
+      .map((k) => k.replaceFirst('${AppConstants.collectionKey}_', '').trim())
+      .where((name) => name.isNotEmpty && !name.contains(RegExp(r'[\\/:*?"<>|]')))
+      .toList();
   }
 } 

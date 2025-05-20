@@ -12,15 +12,11 @@ class ResultPage extends StatelessWidget {
   final String acceleration;
   final String topSpeed;
   final String? description;
-  final String? descriptionEn;
-  final String? descriptionVi;
   final List<String>? features;
   final String? engineDetail;
-  final String? engineDetailEn;
-  final String? engineDetailVi;
   final String? interior;
-  final String? interiorEn;
-  final String? interiorVi;
+  final String pageTitle;
+  final Map<String, String> labels;
 
   const ResultPage({
     super.key,
@@ -33,30 +29,26 @@ class ResultPage extends StatelessWidget {
     required this.acceleration,
     required this.topSpeed,
     this.description,
-    this.descriptionEn,
-    this.descriptionVi,
     this.features,
     this.engineDetail,
-    this.engineDetailEn,
-    this.engineDetailVi,
     this.interior,
-    this.interiorEn,
-    this.interiorVi,
+    required this.pageTitle,
+    required this.labels,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    final desc = isVi ? (descriptionVi ?? description ?? '') : (descriptionEn ?? description ?? '');
-    final engine = isVi ? (engineDetailVi ?? engineDetail ?? '') : (engineDetailEn ?? engineDetail ?? '');
-    final interiorText = isVi ? (interiorVi ?? interior ?? '') : (interiorEn ?? interior ?? '');
+    final desc = description ?? '';
+    final engine = engineDetail ?? '';
+    final interiorText = interior ?? '';
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FA),
       appBar: AppBar(
         backgroundColor: const Color(0xFF2196F3),
         elevation: 0,
-        title: Text(isVi ? 'Kết quả phân tích' : 'Analysis Result', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(pageTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -121,37 +113,107 @@ class ResultPage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _StatBox(
-                        value: power,
-                        label: isVi ? 'Công suất' : 'Power',
-                        unit: 'hp',
-                        color: Colors.blue,
+                      Flexible(
+                        child: _StatBox(
+                          value: power,
+                          label: isVi ? 'Công suất' : 'Power',
+                          unit: 'hp',
+                          color: Colors.blue,
+                        ),
                       ),
-                      _StatBox(
-                        value: acceleration,
-                        label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
-                        unit: 's',
-                        color: Colors.green,
+                      Flexible(
+                        child: _StatBox(
+                          value: acceleration,
+                          label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
+                          unit: 's',
+                          color: Colors.green,
+                        ),
                       ),
-                      _StatBox(
-                        value: topSpeed,
-                        label: isVi ? 'Tốc độ tối đa' : 'Top speed',
-                        unit: 'km/h',
-                        color: Colors.red,
+                      Flexible(
+                        child: _StatBox(
+                          value: topSpeed,
+                          label: isVi ? 'Tốc độ tối đa' : 'Top speed',
+                          unit: 'km/h',
+                          color: Colors.red,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   // Info table
-                  _InfoTable(
-                    year: year,
-                    price: price,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 350) {
+                        // Nếu màn hình quá nhỏ, hiển thị theo cột
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              (year.isNotEmpty ? year : '-'),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              (price.isNotEmpty ? price : '-'),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        );
+                      }
+                      // Mặc định: hiển thị theo hàng ngang với Flexible
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200, width: 1.2),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(isVi ? 'Năm' : 'Year', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                                  Text(
+                                    year.isNotEmpty ? year : '-',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(isVi ? 'Giá' : 'Price', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                                  Text(
+                                    price.isNotEmpty ? price : '-',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 18),
                   // Description Card
                   _SectionCard(
                     icon: Icons.description,
-                    title: isVi ? 'Mô tả' : 'Description',
+                    title: labels['description'] ?? (isVi ? 'Mô tả' : 'Description'),
                     child: Text(
                       desc.isNotEmpty ? desc : (isVi ? 'Không có mô tả.' : 'No description.'),
                       style: const TextStyle(fontSize: 15),
@@ -161,7 +223,7 @@ class ResultPage extends StatelessWidget {
                   // Engine Card
                   _SectionCard(
                     icon: Icons.engineering,
-                    title: isVi ? 'Động cơ' : 'Engine',
+                    title: labels['engine_details'] ?? (isVi ? 'Động cơ' : 'Engine'),
                     child: Text(
                       engine.isNotEmpty ? engine : (isVi ? 'Không có thông tin động cơ.' : 'No engine information available.'),
                       style: const TextStyle(fontSize: 15),
@@ -171,7 +233,7 @@ class ResultPage extends StatelessWidget {
                   // Interior Card
                   _SectionCard(
                     icon: Icons.chair_alt,
-                    title: isVi ? 'Nội thất & Tính năng' : 'Interior & Features',
+                    title: labels['interior_details'] ?? (isVi ? 'Nội thất & Tính năng' : 'Interior & Features'),
                     child: Text(
                       interiorText.isNotEmpty ? interiorText : (isVi ? 'Không có thông tin nội thất.' : 'No interior information available.'),
                       style: const TextStyle(fontSize: 15),
@@ -199,54 +261,23 @@ class _StatBox extends StatelessWidget {
         Text(
           value.isNotEmpty ? value : '-',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         Text(
           unit,
           style: TextStyle(fontSize: 13, color: color.withOpacity(0.7)),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
         Text(
           label,
           style: const TextStyle(fontSize: 13, color: Colors.black54),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
-    );
-  }
-}
-
-class _InfoTable extends StatelessWidget {
-  final String year, price;
-  const _InfoTable({required this.year, required this.price});
-  @override
-  Widget build(BuildContext context) {
-    final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200, width: 1.2),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(isVi ? 'Năm' : 'Year', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-              Text(year.isNotEmpty ? year : '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(isVi ? 'Giá' : 'Price', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-              Text(price.isNotEmpty ? price : '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }

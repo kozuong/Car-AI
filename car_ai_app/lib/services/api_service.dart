@@ -104,6 +104,7 @@ class ApiService {
                   ? List<String>.from(data['features'])
                   : <String>[],
                 description: data['description'] ?? data['Description'] ?? 'No description.',
+                pageTitle: data['page_title'] ?? (langCode == 'vi' ? 'Kết quả phân tích' : 'Analysis Result'),
               );
             } catch (e) {
               print('Error parsing response: $e');

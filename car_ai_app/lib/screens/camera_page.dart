@@ -13,6 +13,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../utils/error_handler.dart';
 import '../services/storage_service.dart';
 import '../models/car_model.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as img;
 
 class CameraPage extends StatefulWidget {
   final String langCode;
@@ -39,15 +41,15 @@ class _CameraPageState extends State<CameraPage> {
 
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        // Không resize ở đây, sẽ resize thủ công để giữ ảnh gốc cho UI
       );
 
       if (image != null) {
+        // Resize ảnh để gửi API, giữ ảnh gốc cho UI
+        final resizedPath = await _resizeAndSaveTemp(image.path);
         // Gửi 2 request: 1 cho tiếng Anh, 1 cho tiếng Việt
-        final resultEn = await _analyzeImageWithLang(image.path, 'en');
-        final resultVi = await _analyzeImageWithLang(image.path, 'vi');
+        final resultEn = await _analyzeImageWithLang(resizedPath, 'en');
+        final resultVi = await _analyzeImageWithLang(resizedPath, 'vi');
         if (!mounted) return;
 
         if (resultEn['car_name'] == 'API error' || resultEn['car_name'] == 'Exception') {
@@ -58,17 +60,19 @@ class _CameraPageState extends State<CameraPage> {
         // Lưu vào lịch sử
         try {
           final carModel = CarModel(
-            imagePath: image.path,
-            carName: resultEn['car_name'] ?? '',
-            brand: resultEn['brand'] ?? '',
-            year: resultEn['year'] ?? '',
-            price: resultEn['price'] ?? '',
-            power: resultEn['power'] ?? '',
-            acceleration: resultEn['acceleration'] ?? '',
-            topSpeed: resultEn['top_speed'] ?? '',
+            imagePath: image.path, // Ảnh gốc cho UI
+            carName: widget.langCode == 'vi' ? resultVi['car_name'] ?? '' : resultEn['car_name'] ?? '',
+            brand: widget.langCode == 'vi' ? resultVi['brand'] ?? '' : resultEn['brand'] ?? '',
+            year: widget.langCode == 'vi' ? resultVi['year'] ?? '' : resultEn['year'] ?? '',
+            price: widget.langCode == 'vi' ? resultVi['price'] ?? '' : resultEn['price'] ?? '',
+            power: widget.langCode == 'vi' ? resultVi['power'] ?? '' : resultEn['power'] ?? '',
+            acceleration: widget.langCode == 'vi' ? resultVi['acceleration'] ?? '' : resultEn['acceleration'] ?? '',
+            topSpeed: widget.langCode == 'vi' ? resultVi['top_speed'] ?? '' : resultEn['top_speed'] ?? '',
             engine: widget.langCode == 'vi' ? resultVi['engine_detail'] ?? '' : resultEn['engine_detail'] ?? '',
             interior: widget.langCode == 'vi' ? resultVi['interior'] ?? '' : resultEn['interior'] ?? '',
-            features: resultEn['features'] != null ? (resultEn['features'] as List).map((e) => e.toString()).toList() : [],
+            features: widget.langCode == 'vi' 
+              ? (resultVi['features'] != null ? (resultVi['features'] as List).map((e) => e.toString()).toList() : [])
+              : (resultEn['features'] != null ? (resultEn['features'] as List).map((e) => e.toString()).toList() : []),
             description: widget.langCode == 'vi' ? resultVi['description'] ?? '' : resultEn['description'] ?? '',
             descriptionEn: resultEn['description'] ?? '',
             descriptionVi: resultVi['description'] ?? '',
@@ -76,6 +80,7 @@ class _CameraPageState extends State<CameraPage> {
             engineDetailVi: resultVi['engine_detail'] ?? '',
             interiorEn: resultEn['interior'] ?? '',
             interiorVi: resultVi['interior'] ?? '',
+            pageTitle: widget.langCode == 'vi' ? 'Kết quả phân tích' : 'Analysis Result',
           );
 
           // Kiểm tra dữ liệu trước khi lưu
@@ -86,12 +91,14 @@ class _CameraPageState extends State<CameraPage> {
           // Lưu vào lịch sử
           await StorageService().saveCarToHistory(carModel);
           
-          // Đảm bảo collection 'Favorites' tồn tại trước khi lưu
-          try {
-            await StorageService().addCollection('Favorites');
-            await StorageService().saveCarToCollection(carModel, 'Favorites');
-          } catch (e) {
-            print('Error saving to collection: $e');
+          // Lưu vào bộ sưu tập theo thương hiệu (nếu brand hợp lệ)
+          final brand = carModel.brand.trim();
+          if (brand.isNotEmpty && !brand.contains(RegExp(r'[\\/:*?"<>|]'))) {
+            try {
+              await StorageService().saveCarToCollection(carModel, brand);
+            } catch (e) {
+              print('Error saving to brand collection: $e');
+            }
           }
           
           if (!mounted) return;
@@ -114,23 +121,23 @@ class _CameraPageState extends State<CameraPage> {
             MaterialPageRoute(
               builder: (context) => ResultPage(
                 imagePath: image.path,
-                carName: resultEn['car_name'] ?? '',
-                brand: resultEn['brand'] ?? '',
-                year: resultEn['year'] ?? '',
-                price: resultEn['price'] ?? '',
-                power: resultEn['power'] ?? '',
-                acceleration: resultEn['acceleration'] ?? '',
-                topSpeed: resultEn['top_speed'] ?? '',
-                description: widget.langCode == 'vi' ? resultVi['description'] : resultEn['description'],
-                descriptionEn: resultEn['description'] ?? '',
-                descriptionVi: resultVi['description'] ?? '',
-                features: resultEn['features'] != null ? List<String>.from(resultEn['features']) : [],
-                engineDetail: widget.langCode == 'vi' ? resultVi['engine_detail'] : resultEn['engine_detail'],
-                engineDetailEn: resultEn['engine_detail'] ?? '',
-                engineDetailVi: resultVi['engine_detail'] ?? '',
-                interior: widget.langCode == 'vi' ? resultVi['interior'] : resultEn['interior'],
-                interiorEn: resultEn['interior'] ?? '',
-                interiorVi: resultVi['interior'] ?? '',
+                carName: widget.langCode == 'vi' ? resultVi['car_name'] ?? '' : resultEn['car_name'] ?? '',
+                brand: widget.langCode == 'vi' ? resultVi['brand'] ?? '' : resultEn['brand'] ?? '',
+                year: widget.langCode == 'vi' ? resultVi['year'] ?? '' : resultEn['year'] ?? '',
+                price: widget.langCode == 'vi' ? resultVi['price'] ?? '' : resultEn['price'] ?? '',
+                power: widget.langCode == 'vi' ? resultVi['power'] ?? '' : resultEn['power'] ?? '',
+                acceleration: widget.langCode == 'vi' ? resultVi['acceleration'] ?? '' : resultEn['acceleration'] ?? '',
+                topSpeed: widget.langCode == 'vi' ? resultVi['top_speed'] ?? '' : resultEn['top_speed'] ?? '',
+                description: widget.langCode == 'vi' ? resultVi['description'] ?? '' : resultEn['description'] ?? '',
+                features: widget.langCode == 'vi'
+                  ? (resultVi['features'] != null ? List<String>.from(resultVi['features']) : [])
+                  : (resultEn['features'] != null ? List<String>.from(resultEn['features']) : []),
+                engineDetail: widget.langCode == 'vi' ? resultVi['engine_detail'] ?? '' : resultEn['engine_detail'] ?? '',
+                interior: widget.langCode == 'vi' ? resultVi['interior'] ?? '' : resultEn['interior'] ?? '',
+                pageTitle: widget.langCode == 'vi' ? 'Kết quả phân tích' : 'Analysis Result',
+                labels: widget.langCode == 'vi'
+                  ? (resultVi['labels'] != null ? Map<String, String>.from(resultVi['labels']) : <String, String>{})
+                  : (resultEn['labels'] != null ? Map<String, String>.from(resultEn['labels']) : <String, String>{}),
               ),
             ),
           );
@@ -183,7 +190,7 @@ class _CameraPageState extends State<CameraPage> {
         ..fields['lang'] = lang
         ..files.add(await http.MultipartFile.fromPath('image', imagePath));
 
-      final streamed = await request.send().timeout(const Duration(seconds: 10));
+      final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
 
       if (response.statusCode == 200) {
@@ -256,6 +263,19 @@ class _CameraPageState extends State<CameraPage> {
     } else {
       _getImage(source);
     }
+  }
+
+  // Hàm resize ảnh và lưu file tạm
+  Future<String> _resizeAndSaveTemp(String originalPath) async {
+    final bytes = await File(originalPath).readAsBytes();
+    final image = img.decodeImage(bytes);
+    if (image == null) return originalPath;
+    final resized = img.copyResize(image, width: 512, height: 512, interpolation: img.Interpolation.linear);
+    final tempDir = await getTemporaryDirectory();
+    final tempPath = '${tempDir.path}/car_ai_temp.jpg';
+    final jpg = img.encodeJpg(resized, quality: 75);
+    await File(tempPath).writeAsBytes(jpg);
+    return tempPath;
   }
 
   @override
