@@ -6,11 +6,16 @@ import '../config/constants.dart';
 import '../models/car_model.dart';
 import 'dart:async';
 import 'package:image/image.dart' as img;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'connectivity_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
+
+  final ConnectivityService _connectivityService = ConnectivityService();
+  final String _baseUrl = dotenv.env['API_URL'] ?? 'http://localhost:5000';
 
   Future<File> _resizeImageIfNeeded(File imageFile) async {
     final bytes = await imageFile.readAsBytes();
@@ -24,122 +29,209 @@ class ApiService {
   }
 
   Future<CarModel> analyzeCarImage(File imageFile, String langCode) async {
-    try {
-      // Resize image if needed
-      File processedImage = await _resizeImageIfNeeded(imageFile);
-      // Check file size
-      final fileSize = await processedImage.length();
-      if (fileSize > AppConstants.maxImageSizeMB * 1024 * 1024) {
-        throw Exception(AppConstants.errorMessages[langCode]!['file_too_large']);
-      }
-
-      // Use original file if size is acceptable
-      if (fileSize > 1 * 1024 * 1024) { // If larger than 1MB
-        print('Large image detected: ${fileSize / 1024}KB');
-      }
-
-      final uri = Uri.parse('${AppConstants.apiBaseUrl}${AppConstants.analyzeEndpoint}');
-      
-      int retryCount = 0;
-      Exception? lastError;
-      
-      while (retryCount <= AppConstants.maxRetries) {
-        try {
-          // Create a new request for each attempt
-          final request = http.MultipartRequest('POST', uri)
-            ..fields['lang'] = langCode;
-
-          // Add file with explicit content type
-          final file = await http.MultipartFile.fromPath(
-            'image', 
-            processedImage.path,
-            contentType: _getImageContentType(processedImage.path),
-          );
-          request.files.add(file);
-
-          print('Sending request attempt ${retryCount + 1}');
-          
-          // Send request with timeout
-          final streamedResponse = await request.send().timeout(
-            Duration(seconds: AppConstants.apiTimeoutSeconds),
-            onTimeout: () {
-              throw TimeoutException(AppConstants.errorMessages[langCode]!['timeout']);
-            },
-          );
-
-          // Convert stream to response with shorter timeout
-          final response = await http.Response.fromStream(streamedResponse).timeout(
-            Duration(seconds: AppConstants.streamTimeoutSeconds),
-            onTimeout: () {
-              throw TimeoutException(AppConstants.errorMessages[langCode]!['timeout']);
-            },
-          );
-
-          print('Response status: ${response.statusCode}');
-
-          if (response.statusCode == 200) {
-            try {
-              final data = jsonDecode(response.body);
-              print('Received data: $data');
-
-              // Extract car name and basic info
-              final carName = data['Car Name'] ?? data['car_name'] ?? '';
-              if (carName.isEmpty) {
-                throw Exception(AppConstants.errorMessages[langCode]!['invalid_response']);
-              }
-
-              // Extract other fields with fallbacks and log if missing
-              return CarModel(
-                imagePath: imageFile.path,
-                carName: carName,
-                brand: data['Brand'] ?? data['brand'] ?? '',
-                year: data['Year'] ?? data['year'] ?? '',
-                price: data['Price'] ?? data['price'] ?? '',
-                power: data['Power'] ?? data['power'] ?? '',
-                acceleration: data['Acceleration'] ?? data['acceleration'] ?? '',
-                topSpeed: data['Top Speed'] ?? data['top_speed'] ?? '',
-                engine: data['engine_detail'] ?? data['Engine'] ?? data['engine'] ?? 'No information',
-                interior: data['interior'] ?? data['Interior & Features'] ?? 'No information',
-                features: (data['features'] is List)
-                  ? List<String>.from(data['features'])
-                  : <String>[],
-                description: data['description'] ?? data['Description'] ?? 'No description.',
-                pageTitle: data['page_title'] ?? (langCode == 'vi' ? 'Kết quả phân tích' : 'Analysis Result'),
-              );
-            } catch (e) {
-              print('Error parsing response: $e');
-              print('Response body: ${response.body}');
-              throw Exception(AppConstants.errorMessages[langCode]!['invalid_response']);
-            }
-          } else if (response.statusCode >= 500) {
-            lastError = Exception('${AppConstants.errorMessages[langCode]!['server_error']}: ${response.statusCode}');
-            print('Server error: ${response.statusCode}');
-          } else {
-            throw Exception('${AppConstants.errorMessages[langCode]!['api_error']}: ${response.statusCode}');
-          }
-        } on TimeoutException {
-          lastError = Exception(AppConstants.errorMessages[langCode]!['timeout']);
-          print('Timeout on attempt ${retryCount + 1}');
-        } on SocketException {
-          lastError = Exception(AppConstants.errorMessages[langCode]!['connection_error']);
-          print('Connection error on attempt ${retryCount + 1}');
-        } catch (e) {
-          lastError = Exception(e.toString());
-          print('Error on attempt ${retryCount + 1}: $e');
-        }
-
-        retryCount++;
-        if (retryCount <= AppConstants.maxRetries) {
-          print('Retrying in ${AppConstants.retryDelaySeconds} second...');
-          await Future.delayed(Duration(seconds: AppConstants.retryDelaySeconds));
-        }
-      }
-
-      throw lastError ?? Exception(AppConstants.errorMessages[langCode]!['unknown_error']);
-    } catch (e) {
-      print('Final error: $e');
-      throw Exception(e.toString());
+    print('[ApiService] Bắt đầu analyzeCarImage với file: ${imageFile.path}, lang: $langCode');
+    if (!await _connectivityService.isConnected()) {
+      print('[ApiService] Không có kết nối internet');
+      throw Exception(langCode == 'vi' 
+          ? 'Không có kết nối internet. Vui lòng kiểm tra lại kết nối của bạn.'
+          : 'No internet connection. Please check your connection.');
     }
+
+    int retryCount = 0;
+    Exception? lastError;
+
+    while (retryCount <= AppConstants.maxRetries) {
+      try {
+        // Resize image if needed
+        File processedImage = await _resizeImageIfNeeded(imageFile);
+        print('[ApiService] Đã resize ảnh (nếu cần), path: ${processedImage.path}');
+        
+        // Check file size
+        final fileSize = await processedImage.length();
+        print('[ApiService] Kích thước file: $fileSize bytes');
+        if (fileSize > AppConstants.maxImageSizeMB * 1024 * 1024) {
+          print('[ApiService] File quá lớn');
+          throw Exception(AppConstants.errorMessages[langCode]!['file_too_large']);
+        }
+
+        final uri = Uri.parse('$_baseUrl/analyze_car');
+        print('[ApiService] Gửi request tới: $uri (Lần thử: ${retryCount + 1})');
+        
+        // Generate unique request ID
+        final requestId = DateTime.now().millisecondsSinceEpoch.toString();
+        
+        // Create multipart request
+        final request = http.MultipartRequest('POST', uri)
+          ..fields['lang'] = langCode
+          ..headers['X-Request-ID'] = requestId;
+
+        // Add image file
+        final contentType = _getImageContentType(processedImage.path);
+        if (contentType == null) {
+          print('[ApiService] Định dạng file không được hỗ trợ');
+          throw Exception(langCode == 'vi'
+              ? 'Định dạng file không được hỗ trợ. Vui lòng sử dụng JPG, PNG hoặc GIF.'
+              : 'Unsupported file format. Please use JPG, PNG or GIF.');
+        }
+
+        request.files.add(await http.MultipartFile.fromPath(
+          'image',
+          processedImage.path,
+          contentType: contentType,
+        ));
+
+        print('[ApiService] Request headers: ${request.headers}');
+        print('[ApiService] Request fields: ${request.fields}');
+
+        // Send request with timeout
+        final streamed = await request.send().timeout(
+          Duration(seconds: AppConstants.apiTimeoutSeconds),
+          onTimeout: () {
+            print('[ApiService] Request timeout');
+            throw TimeoutException('Request timed out');
+          },
+        );
+
+        // Get response with timeout
+        final response = await http.Response.fromStream(streamed).timeout(
+          Duration(seconds: AppConstants.streamTimeoutSeconds),
+          onTimeout: () {
+            print('[ApiService] Response timeout');
+            throw TimeoutException('Response timed out');
+          },
+        );
+
+        print('[ApiService] Response status code: ${response.statusCode}');
+        print('[ApiService] Response headers: ${response.headers}');
+        print('[ApiService] Raw response body: ${response.body}');
+
+        if (response.statusCode == 200) {
+          try {
+            final data = jsonDecode(response.body);
+            print('[ApiService] Parsed JSON data:');
+            safePrintResult(data);
+
+            // Validate response structure
+            if (data == null) {
+              print('[ApiService] Response data is null');
+              throw Exception(langCode == 'vi'
+                  ? 'Phản hồi không hợp lệ từ máy chủ'
+                  : 'Invalid response from server');
+            }
+
+            // Check if response has error status
+            if (data['status'] == 'error') {
+              print('[ApiService] Server returned error: ${data['error']}');
+              throw Exception(data['error'] ?? (langCode == 'vi'
+                  ? 'Lỗi máy chủ'
+                  : 'Server error'));
+            }
+
+            // Validate required fields
+            if (data['status'] != 'success') {
+              print('[ApiService] Invalid status in response: ${data['status']}');
+              throw Exception(langCode == 'vi'
+                  ? 'Trạng thái phản hồi không hợp lệ'
+                  : 'Invalid response status');
+            }
+
+            // Check for required result data
+            if (data['result_en'] == null && data['result_vi'] == null) {
+              print('[ApiService] Missing required fields in response');
+              throw Exception(langCode == 'vi'
+                  ? 'Không nhận diện được xe trong ảnh'
+                  : 'Could not recognize car in image');
+            }
+
+            // Create CarModel from response
+            final resultEn = data['result_en'] ?? data;
+            final resultVi = data['result_vi'] ?? data;
+
+            return CarModel(
+              imagePath: imageFile.path,
+              carName: resultEn['car_name'] ?? '',
+              carNameEn: resultEn['car_name'] ?? '',
+              carNameVi: resultVi['car_name_vi'] ?? resultVi['car_name'] ?? '',
+              brand: resultEn['brand'] ?? '',
+              brandEn: resultEn['brand'] ?? '',
+              brandVi: resultVi['brand_vi'] ?? resultVi['brand'] ?? '',
+              year: resultVi['year'] ?? resultEn['year'] ?? '',
+              yearEn: resultEn['year'] ?? resultVi['year'] ?? '',
+              yearVi: resultVi['year'] ?? resultEn['year'] ?? '',
+              price: resultEn['price'] ?? '',
+              priceEn: resultEn['price'] ?? '',
+              priceVi: resultVi['price'] ?? '',
+              power: resultEn['power'] ?? '',
+              powerEn: resultEn['power'] ?? '',
+              powerVi: resultVi['power'] ?? '',
+              acceleration: resultEn['acceleration'] ?? '',
+              accelerationEn: resultEn['acceleration'] ?? '',
+              accelerationVi: resultVi['acceleration'] ?? '',
+              topSpeed: resultEn['top_speed'] ?? '',
+              topSpeedEn: resultEn['top_speed'] ?? '',
+              topSpeedVi: resultVi['top_speed'] ?? '',
+              engine: resultEn['engine_detail'] ?? '',
+              engineEn: resultEn['engine_detail'] ?? '',
+              engineVi: resultVi['engine_detail_vi'] ?? resultVi['engine_detail'] ?? '',
+              interior: resultEn['interior'] ?? '',
+              interiorEn: resultEn['interior'] ?? '',
+              interiorVi: resultVi['interior_vi'] ?? resultVi['interior'] ?? '',
+              features: (resultEn['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+              featuresEn: (resultEn['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+              featuresVi: (resultVi['features_vi'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? (resultVi['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+              description: resultEn['description'] ?? '',
+              descriptionEn: resultEn['description'] ?? '',
+              descriptionVi: resultVi['description_vi'] ?? resultVi['description'] ?? '',
+              pageTitle: langCode == 'vi' ? 'Kết quả phân tích' : 'Analysis Result',
+              logoUrl: resultEn['logo_url'] ?? '',
+              numberProduced: resultEn['number_produced'] ?? '',
+              numberProducedEn: resultEn['number_produced'] ?? '',
+              numberProducedVi: resultVi['number_produced'] ?? '',
+              rarity: resultEn['rarity']?.toString() ?? '',
+              rarityEn: resultEn['rarity']?.toString() ?? '',
+              rarityVi: resultVi['rarity']?.toString() ?? '',
+              engineDetailEn: resultEn['engine_detail'] ?? '',
+              engineDetailVi: resultVi['engine_detail_vi'] ?? resultVi['engine_detail'] ?? '',
+            );
+          } catch (e) {
+            print('[ApiService] Failed to parse response: $e');
+            throw Exception(langCode == 'vi'
+                ? 'Lỗi xử lý phản hồi: $e'
+                : 'Error processing response: $e');
+          }
+        } else if (response.statusCode == 429) {
+          print('[ApiService] Rate limit exceeded');
+          throw Exception(langCode == 'vi'
+              ? 'Quá nhiều yêu cầu. Vui lòng đợi một chút.'
+              : 'Too many requests. Please wait a moment.');
+        } else {
+          print('[ApiService] Server error: ${response.statusCode}');
+          throw Exception(langCode == 'vi'
+              ? 'Lỗi máy chủ: ${response.statusCode}'
+              : 'Server error: ${response.statusCode}');
+        }
+      } catch (e) {
+        lastError = e as Exception;
+        print('[ApiService] Request failed (Attempt ${retryCount + 1}): $e');
+        
+        // Only retry on network errors or timeouts
+        if (e is TimeoutException || e is SocketException) {
+          retryCount++;
+          if (retryCount <= AppConstants.maxRetries) {
+            print('[ApiService] Retrying in ${AppConstants.retryDelaySeconds} seconds...');
+            await Future.delayed(Duration(seconds: AppConstants.retryDelaySeconds));
+            continue;
+          }
+        }
+        // Don't retry on other errors
+        break;
+      }
+    }
+
+    print('[ApiService] All retry attempts failed');
+    throw lastError ?? Exception(langCode == 'vi'
+        ? 'Không thể phân tích ảnh sau nhiều lần thử'
+        : 'Failed to analyze image after multiple attempts');
   }
 
   MediaType? _getImageContentType(String path) {
@@ -158,7 +250,7 @@ class ApiService {
   }
 
   Future<List<CarModel>> fetchHistory() async {
-    final uri = Uri.parse('${AppConstants.apiBaseUrl}/history');
+    final uri = Uri.parse('$_baseUrl/history');
     final response = await http.get(uri);
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
@@ -169,13 +261,35 @@ class ApiService {
   }
 
   Future<List<CarModel>> fetchCollection([String collectionName = 'Favorites']) async {
-    final uri = Uri.parse('${AppConstants.apiBaseUrl}/collection?name=$collectionName');
+    final uri = Uri.parse('$_baseUrl/collection?name=$collectionName');
     final response = await http.get(uri);
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => CarModel.fromJson(json)).toList();
     } else {
       throw Exception('Failed to fetch collection: \\${response.statusCode}');
+    }
+  }
+
+  void safePrintResult(dynamic data, {int maxLength = 100}) {
+    if (data is Map) {
+      data.forEach((key, value) {
+        if (value is String && (value.length > maxLength || key.contains('base64') || value.startsWith('data:image'))) {
+          print('[33m$key: [omitted][0m');
+        } else if (value is Map || value is List) {
+          print('[36m$key: {[0m');
+          safePrintResult(value, maxLength: maxLength);
+          print('[36m}[0m');
+        } else {
+          print('$key: $value');
+        }
+      });
+    } else if (data is List) {
+      for (var item in data) {
+        safePrintResult(item, maxLength: maxLength);
+      }
+    } else {
+      print(data);
     }
   }
 } 

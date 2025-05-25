@@ -24,16 +24,7 @@ void main() {
         stopwatch.stop();
         print('API Response Time: ${stopwatch.elapsedMilliseconds}ms');
         print('Response Data:');
-        print('Car Name: ${result.carName}');
-        print('Year: ${result.year}');
-        print('Price: ${result.price}');
-        print('Power: ${result.power}');
-        print('Acceleration: ${result.acceleration}');
-        print('Top Speed: ${result.topSpeed}');
-        print('Engine: ${result.engine}');
-        print('Interior: ${result.interior}');
-        print('Features: ${result.features}');
-        print('Description: ${result.description}');
+        safePrintResult(result);
         
         // Verify response time is within acceptable range
         expect(stopwatch.elapsedMilliseconds, lessThan(10000)); // Less than 10 seconds
@@ -45,4 +36,26 @@ void main() {
       }
     });
   });
+}
+
+void safePrintResult(dynamic data, {int maxLength = 100}) {
+  if (data is Map) {
+    data.forEach((key, value) {
+      if (value is String && (value.length > maxLength || key.contains('base64') || value.startsWith('data:image'))) {
+        print('[33m$key: [omitted][0m');
+      } else if (value is Map || value is List) {
+        print('[36m$key: {[0m');
+        safePrintResult(value, maxLength: maxLength);
+        print('[36m}[0m');
+      } else {
+        print('$key: $value');
+      }
+    });
+  } else if (data is List) {
+    for (var item in data) {
+      safePrintResult(item, maxLength: maxLength);
+    }
+  } else {
+    print(data);
+  }
 } 

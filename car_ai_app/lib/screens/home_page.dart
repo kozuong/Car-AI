@@ -55,7 +55,12 @@ class _HomePageState extends State<HomePage> {
   void _toggleLanguage() {
     setState(() {
       _currentLang = _currentLang == 'vi' ? 'en' : 'vi';
-      _initializePages();
+      // Tạo lại các trang với key mới để đảm bảo load lại dữ liệu
+      _pages = [
+        CameraPage(key: ValueKey('camera_${_currentLang}_${DateTime.now().millisecondsSinceEpoch}'), langCode: _currentLang),
+        BrandCollectionPage(key: ValueKey('collection_${_currentLang}_${DateTime.now().millisecondsSinceEpoch}'), langCode: _currentLang),
+        HistoryPage(key: ValueKey('history_${_currentLang}_${DateTime.now().millisecondsSinceEpoch}'), langCode: _currentLang),
+      ];
     });
   }
 

@@ -13,10 +13,10 @@ dependencies:
   http: ^1.1.0
   image_picker: ^1.0.4
   shared_preferences: ^2.2.2
-  permission_handler: ^11.0.1
+  permission_handler: ^12.0.0+1
   flutter_dotenv: ^5.1.0
   path_provider: ^2.1.1
-  intl: ^0.19.0
+  intl: ^0.20.2
   cached_network_image: ^3.3.0
   flutter_svg: ^2.0.9
   url_launcher: ^6.2.2
@@ -40,6 +40,10 @@ dependencies:
     sdk: flutter
   google_mobile_ads: ^4.0.0
   in_app_purchase: ^3.1.13
+  path: ^1.8.3
+  google_generative_ai: ^0.2.0
+  screenshot: ^3.0.0
+  widget_to_image: ^2.0.0
 
 dev_dependencies:
   flutter_test:
@@ -54,6 +58,22 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/translations/
+  fonts:
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat-Regular.ttf
+        - asset: assets/fonts/Montserrat-Bold.ttf
+          weight: 700
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: OpenSans
+      fonts:
+        - asset: assets/fonts/OpenSans-Regular.ttf
+        - asset: assets/fonts/OpenSans-Bold.ttf
+          weight: 700
 
 flutter_icons:
   android: "launcher_icon"

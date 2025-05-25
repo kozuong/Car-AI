@@ -1,82 +1,149 @@
 # Car AI Backend
 
-Backend service for Car AI application that provides image processing and AI analysis capabilities.
+Backend API cho ứng dụng phân tích xe hơi sử dụng AI, được xây dựng với Flask và Google Gemini API.
 
-## Features
+## Tính năng
 
-- Image upload and processing
-- AI-powered car analysis
-- RESTful API endpoints
-- Secure file handling
+- Phân tích hình ảnh xe hơi
+- Nhận diện logo và thương hiệu
+- Trích xuất thông tin chi tiết về xe
+- Hỗ trợ đa ngôn ngữ (Tiếng Việt/Anh)
+- Cache và rate limiting
+- Xử lý lỗi toàn diện
 
-## Prerequisites
+## Yêu cầu hệ thống
 
-- Python 3.11 or higher
-- pip (Python package manager)
+- Python 3.8+
+- OpenCV
+- Flask
+- Google Generative AI
+- Các thư viện khác (xem requirements.txt)
 
-## Installation
+## Cài đặt
 
-1. Clone the repository:
+1. Clone repository:
 ```bash
-git clone https://github.com/your-username/car-ai-backend.git
+git clone <repository_url>
 cd car-ai-backend
 ```
 
-2. Create and activate virtual environment:
+2. Tạo môi trường ảo:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
 ```
 
-3. Install dependencies:
+3. Cài đặt dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Create .env file:
+4. Tạo file .env:
 ```bash
 cp .env.example .env
 ```
+Sau đó cập nhật các biến môi trường trong file .env với API keys của bạn.
 
-## Configuration
+## Chạy ứng dụng
 
-Create a `.env` file in the root directory with the following variables:
-```
-FLASK_APP=app.py
-FLASK_ENV=development
-SECRET_KEY=your-secret-key
-```
-
-## Running the Application
-
-1. Development mode:
+1. Chạy trong môi trường development:
 ```bash
-flask run
+python app.py
 ```
 
-2. Production mode:
+2. Chạy với Gunicorn (production):
 ```bash
 gunicorn app:app
 ```
 
 ## API Endpoints
 
-- `POST /upload`: Upload car image for analysis
-- `GET /analyze/<image_id>`: Get analysis results for uploaded image
-- `GET /health`: Health check endpoint
+### POST /analyze_car
+Phân tích hình ảnh xe hơi
 
-## Deployment
+**Request:**
+- Method: POST
+- Content-Type: multipart/form-data
+- Parameters:
+  - image: File hình ảnh
+  - lang: Ngôn ngữ (vi/en)
 
-The application is configured for deployment on Render.com. The `render.yaml` file contains the necessary configuration.
+**Response:**
+```json
+{
+    "car_name": "string",
+    "brand": "string",
+    "year": "string",
+    "price": "string",
+    "power": "string",
+    "acceleration": "string",
+    "top_speed": "string",
+    "number_produced": "string",
+    "rarity": "string",
+    "engine_detail": "string",
+    "interior": "string",
+    "features": ["string"],
+    "description": "string"
+}
+```
 
-## Contributing
+### POST /translate_history
+Dịch lịch sử phân tích
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+**Request:**
+- Method: POST
+- Content-Type: application/json
+- Body:
+  - record: Object chứa thông tin cần dịch
+  - lang: Ngôn ngữ đích (vi/en)
+
+### GET /test_api
+Kiểm tra kết nối API
+
+## Cấu trúc thư mục
+
+```
+car-ai-backend/
+├── app/
+│   ├── config/
+│   │   ├── config.py
+│   │   ├── constants.py
+│   │   └── translations.py
+│   ├── services/
+│   │   ├── car_analyzer.py
+│   │   ├── gemini_service.py
+│   │   └── image_processor.py
+│   └── utils/
+│       ├── cache_manager.py
+│       └── error_handler.py
+├── app.py
+├── requirements.txt
+└── .env
+```
+
+## Xử lý lỗi
+
+Ứng dụng sử dụng hệ thống xử lý lỗi toàn diện với các loại lỗi:
+- ImageProcessingError
+- ExternalAPIError
+- ValidationError
+
+Mỗi lỗi sẽ trả về response JSON với:
+- Mã lỗi HTTP phù hợp
+- Thông báo lỗi
+- Chi tiết lỗi (nếu có)
+
+## Cache và Rate Limiting
+
+- Cache timeout: 5 giây
+- Giới hạn kích thước cache: 1000 entries
+- Rate limiting: 1 request/5 giây cho mỗi client
+
+## Đóng góp
+
+Mọi đóng góp đều được hoan nghênh. Vui lòng tạo issue hoặc pull request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License

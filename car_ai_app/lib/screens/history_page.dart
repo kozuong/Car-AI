@@ -8,6 +8,8 @@ import '../services/storage_service.dart';
 import '../config/constants.dart';
 import 'car_detail_page.dart';
 import 'package:shimmer/shimmer.dart';
+import '../widgets/page_title.dart';
+import '../widgets/car_card.dart';
 
 class HistoryPage extends StatefulWidget {
   final String langCode;
@@ -68,6 +70,22 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
       if (mounted) {
         setState(() => isLoading = false);
       }
+    }
+  }
+
+  Future<CarModel> translateHistoryRecord(CarModel car, String lang) async {
+    final response = await http.post(
+      Uri.parse('http://192.168.1.87:8000/translate_history'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'record': car.toJson(),
+        'lang': lang,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return CarModel.fromJson(jsonDecode(response.body));
+    } else {
+      return car;
     }
   }
 
@@ -156,7 +174,7 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isVi ? 'Lịch sử' : 'History'),
+        title: PageTitle(isVi ? 'Lịch sử' : 'History'),
         actions: [
           if (history.isNotEmpty)
             IconButton(
@@ -344,138 +362,37 @@ class _HistoryPageState extends State<HistoryPage> with AutomaticKeepAliveClient
       itemCount: filteredHistory.length,
       itemBuilder: (context, index) {
         final car = filteredHistory[index];
-        final isVi = widget.langCode == 'vi';
-        
-        // Chuẩn hóa brand
-        final brandTag = (car.brand.isNotEmpty)
-            ? car.brand.trim().split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1).toLowerCase() : '').join(' ')
-            : '';
-        
-        // Format power and speed based on language
-        final powerText = car.power.isNotEmpty ? car.power : '-';
-        final speedText = car.topSpeed.isNotEmpty ? car.topSpeed : '-';
-        final yearText = isVi ? 'Năm ${car.year}' : 'Year ${car.year}';
-
-        return GestureDetector(
+        return CarCard(
+          car: car,
+          langCode: widget.langCode,
           onTap: () => _openCarDetail(car),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Image.file(
-                    File(car.imagePath),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (brandTag.isNotEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            brandTag,
-                            style: const TextStyle(
-                              color: Color(0xFF2196F3),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      Text(
-                        car.carName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200, width: 1.2),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isVi ? 'Năm' : 'Year',
-                                    style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
-                                    textAlign: TextAlign.left,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    car.year.isNotEmpty ? car.year : '-',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-                                    textAlign: TextAlign.left,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              width: 1,
-                              height: 32,
-                              color: Colors.grey.shade200,
-                              margin: const EdgeInsets.symmetric(horizontal: 10),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    isVi ? 'Giá' : 'Price',
-                                    style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    car.price.isNotEmpty ? car.price : '-',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          onDelete: () async {
+            await _storageService.removeFromHistory(car);
+            setState(() {
+              history.removeWhere((item) => item.timestamp == car.timestamp);
+            });
+          },
         );
       },
+    );
+  }
+
+  Widget _buildStarRating(String? rarity) {
+    int filled = 1;
+    if (rarity != null && rarity.isNotEmpty) {
+      filled = rarity.replaceAll(RegExp(r'[^★]'), '').length;
+      if (filled < 1) filled = 1;
+      if (filled > 5) filled = 5;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        return Icon(
+          index < filled ? Icons.star : Icons.star_border,
+          color: index < filled ? Colors.amber : Colors.grey[300],
+          size: 18,
+        );
+      }),
     );
   }
 } 

@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/car_model.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class CarDetailPage extends StatelessWidget {
   final CarModel car;
@@ -57,6 +59,31 @@ class CarDetailPage extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (car.logoUrl.isNotEmpty)
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: buildLogo(car.logoUrl),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   top: 16,
                   left: 16,
@@ -76,112 +103,128 @@ class CarDetailPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Brand tag
-                    if (car.brand.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          car.brand,
-                          style: const TextStyle(
-                            color: Color(0xFF2196F3),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    Text(
-                      car.carName,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
-                    ),
-                    const SizedBox(height: 8),
-                    // Main stats
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: _StatBox(
-                          value: car.power,
-                          label: isVi ? 'Công suất' : 'Power',
-                          unit: 'hp',
-                          color: Colors.blue,
-                        ),
-                        ),
-                        Flexible(
-                          child: _StatBox(
-                          value: car.acceleration,
-                          label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
-                          unit: 's',
-                          color: Colors.green,
-                        ),
-                        ),
-                        Flexible(
-                          child: _StatBox(
-                          value: car.topSpeed,
-                          label: isVi ? 'Tốc độ tối đa' : 'Top speed',
-                          unit: 'km/h',
-                          color: Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Info table
+                    // Gộp brand, tên xe, main stats, info table vào một box trắng lớn
                     Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200, width: 1.2),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: Row(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  isVi ? 'Năm' : 'Year',
-                                  style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
-                                  textAlign: TextAlign.left,
+                          // Brand tag
+                          if (car.brand.isNotEmpty)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                car.brand,
+                                style: const TextStyle(
+                                  color: Color(0xFF2196F3),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  car.year.isNotEmpty ? car.year : '-',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-                                  textAlign: TextAlign.left,
-                                ),
-                              ],
+                              ),
                             ),
+                          Text(
+                            car.carName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
                           ),
-                          Container(
-                            width: 1,
-                            height: 32,
-                            color: Colors.grey.shade200,
-                            margin: const EdgeInsets.symmetric(horizontal: 10),
+                          const SizedBox(height: 8),
+                          // Main stats
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: _StatBox(
+                                  value: car.power,
+                                  label: isVi ? 'Công suất' : 'Power',
+                                  unit: 'hp',
+                                  color: Colors.blue,
+                                ),
+                              ),
+                              Flexible(
+                                child: _StatBox(
+                                  value: car.getLocalizedText('acceleration', langCode),
+                                  label: isVi ? 'Tăng tốc 0-100' : '0-100 km/h',
+                                  unit: 's',
+                                  color: Colors.green,
+                                ),
+                              ),
+                              Flexible(
+                                child: _StatBox(
+                                  value: car.topSpeed,
+                                  label: isVi ? 'Tốc độ tối đa' : 'Top speed',
+                                  unit: 'km/h',
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
                           ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  isVi ? 'Giá' : 'Price',
-                                  style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
-                                  textAlign: TextAlign.right,
+                          const SizedBox(height: 16),
+                          // Info table (bỏ decoration, chỉ giữ nội dung)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(isVi ? 'Năm' : 'Year', style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500)),
+                                    const SizedBox(height: 4),
+                                    Text(car.year.isNotEmpty ? car.year : '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  car.price.isNotEmpty ? car.price : '-',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-                                  textAlign: TextAlign.right,
+                              ),
+                              Container(width: 1, height: 32, color: Colors.grey.shade100, margin: const EdgeInsets.symmetric(horizontal: 10)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(isVi ? 'Giá' : 'Price', style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500)),
+                                    const SizedBox(height: 4),
+                                    Text(car.price.isNotEmpty ? car.price : '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17), textAlign: TextAlign.right, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(isVi ? 'Số lượng sản xuất' : 'Number produced', style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500)),
+                                    const SizedBox(height: 4),
+                                    Text(car.getLocalizedText('numberProduced', langCode).isNotEmpty ? car.getLocalizedText('numberProduced', langCode) : '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                                  ],
+                                ),
+                              ),
+                              Container(width: 1, height: 32, color: Colors.grey.shade100, margin: const EdgeInsets.symmetric(horizontal: 10)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(isVi ? 'Độ hiếm' : 'Rarity', style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500)),
+                                    const SizedBox(height: 4),
+                                    _buildStarRating(car.rarity),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -228,6 +271,61 @@ class CarDetailPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildStarRating(String? rarity) {
+    // Hỗ trợ hiển thị sao rưỡi (half star)
+    int filled = 1;
+    bool hasHalf = false;
+    if (rarity != null && rarity.isNotEmpty) {
+      // Nếu rarity là '★★★★½' hoặc '4.5', hiển thị 4 sao vàng, 1 sao rưỡi
+      if (rarity.contains('½') || rarity.contains('4.5')) {
+        filled = 4;
+        hasHalf = true;
+      } else {
+        filled = rarity.replaceAll(RegExp(r'[^★]'), '').length;
+        hasHalf = false;
+      }
+      if (filled < 1) filled = 1;
+      if (filled > 5) filled = 5;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        if (index < filled) {
+          return Icon(Icons.star, color: Colors.amber, size: 18);
+        } else if (index == filled && hasHalf) {
+          return Icon(Icons.star_half, color: Colors.amber, size: 18);
+        } else {
+          return Icon(Icons.star_border, color: Colors.grey[300], size: 18);
+        }
+      }),
+    );
+  }
+
+  Widget buildLogo(String logoUrl, {double width = 48, double height = 48}) {
+    if (logoUrl.startsWith('data:image/')) {
+      try {
+        final base64Str = logoUrl.split(',').last;
+        final bytes = base64Decode(base64Str);
+        return Image.memory(
+          bytes,
+          width: width,
+          height: height,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.error),
+        );
+      } catch (e) {
+        return Icon(Icons.error);
+      }
+    } else {
+      return Image.network(
+        logoUrl,
+        width: width,
+        height: height,
+        errorBuilder: (context, error, stackTrace) => Icon(Icons.error),
+      );
+    }
   }
 }
 

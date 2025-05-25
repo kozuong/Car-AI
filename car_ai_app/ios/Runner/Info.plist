@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Car AI</string>
+	<string>Car AI Analyzer</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -29,7 +29,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photos access to get car images from your library</string>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy</string>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

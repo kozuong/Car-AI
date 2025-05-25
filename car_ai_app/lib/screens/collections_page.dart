@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import '../config/constants.dart';
 import '../models/car_model.dart';
 import '../services/api_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
+import '../widgets/car_card.dart';
+import '../services/storage_service.dart';
+import 'car_detail_page.dart';
 
 class CollectionsPage extends StatefulWidget {
   final String langCode;
@@ -21,14 +27,38 @@ class _CollectionsPageState extends State<CollectionsPage> {
     _loadCollection();
   }
 
+  Future<CarModel> translateCollectionRecord(CarModel car, String lang) async {
+    final response = await http.post(
+      Uri.parse('http://192.168.1.87:8000/translate_history'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'record': car.toJson(),
+        'lang': lang,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return CarModel.fromJson(jsonDecode(response.body));
+    } else {
+      return car;
+    }
+  }
+
   Future<void> _loadCollection() async {
     setState(() => isLoading = true);
     try {
-      favorites = await ApiService().fetchCollection('Favorites');
+      favorites = await StorageService().getCollection('Favorites');
     } catch (e) {
       favorites = [];
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  void didUpdateWidget(CollectionsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.langCode != widget.langCode) {
+      setState(() {}); // Chỉ cần rebuild UI, không cần load lại data
     }
   }
 
@@ -56,23 +86,54 @@ class _CollectionsPageState extends State<CollectionsPage> {
                   itemCount: favorites.length,
                   itemBuilder: (context, index) {
                     final car = favorites[index];
-                    return Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListTile(
-                        leading: const Icon(Icons.star, color: Colors.amber),
-                        title: Text(car.carName),
-                        subtitle: Text(car.brand),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // TODO: Show car details
-                        },
-                      ),
+                    return CarCard(
+                      car: car,
+                      langCode: widget.langCode,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CarDetailPage(
+                              car: car,
+                              langCode: widget.langCode,
+                            ),
+                          ),
+                        );
+                      },
+                      onDelete: () async {
+                        await StorageService().removeFromCollection(car, 'Favorites');
+                        setState(() {
+                          favorites.removeAt(index);
+                        });
+                        if (favorites.isEmpty) {
+                          await StorageService().removeCollection('Favorites');
+                          if (mounted) {
+                            Navigator.pop(context);
+                          }
+                        }
+                      },
                     );
                   },
                 ),
+    );
+  }
+
+  Widget _buildStarRating(String? rarity) {
+    int filled = 1;
+    if (rarity != null && rarity.isNotEmpty) {
+      filled = rarity.replaceAll(RegExp(r'[^★]'), '').length;
+      if (filled < 1) filled = 1;
+      if (filled > 5) filled = 5;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        return Icon(
+          index < filled ? Icons.star : Icons.star_border,
+          color: index < filled ? Colors.amber : Colors.grey[300],
+          size: 18,
+        );
+      }),
     );
   }
 } 

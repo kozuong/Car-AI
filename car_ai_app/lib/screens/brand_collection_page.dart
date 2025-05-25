@@ -6,6 +6,10 @@ import '../services/storage_service.dart';
 import '../models/car_model.dart';
 import 'car_detail_page.dart';
 import 'dart:io';
+import '../widgets/page_title.dart';
+import '../widgets/car_card.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:convert';
 
 class BrandCollectionPage extends StatefulWidget {
   final String langCode;
@@ -18,6 +22,7 @@ class BrandCollectionPage extends StatefulWidget {
 class _BrandCollectionPageState extends State<BrandCollectionPage> {
   List<String> brandNames = [];
   bool isLoading = true;
+  final _storageService = StorageService();
 
   @override
   void initState() {
@@ -32,16 +37,20 @@ class _BrandCollectionPageState extends State<BrandCollectionPage> {
   }
 
   Future<void> _loadBrands() async {
+    if (!mounted) return;
     setState(() => isLoading = true);
-    final brands = await StorageService().getAllBrandCollections();
-    setState(() {
-      brandNames = brands;
-      isLoading = false;
-    });
+    final brands = await _storageService.getAllBrandCollections();
+    if (mounted) {
+      setState(() {
+        brandNames = brands;
+        isLoading = false;
+      });
+    }
   }
 
   void _openBrandCollection(String brand) async {
-    final cars = await StorageService().getCollection(brand);
+    final cars = await _storageService.getCollection(brand);
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -49,6 +58,9 @@ class _BrandCollectionPageState extends State<BrandCollectionPage> {
           brand: brand,
           cars: cars,
           langCode: widget.langCode,
+          onCollectionDeleted: () {
+            _loadBrands(); // Reload when collection is deleted
+          },
         ),
       ),
     );
@@ -60,13 +72,7 @@ class _BrandCollectionPageState extends State<BrandCollectionPage> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text(
-            AppConstants.messages[widget.langCode]!['collectionTitle'] ?? 'Car Brands',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).primaryColor,
-            ),
-          ),
+          child: PageTitle(AppConstants.messages[widget.langCode]!['collectionTitle'] ?? 'Car Brands'),
         ),
         Expanded(
           child: isLoading
@@ -74,42 +80,54 @@ class _BrandCollectionPageState extends State<BrandCollectionPage> {
               : brandNames.isEmpty
                   ? Center(child: Text('Chưa có bộ sưu tập xe.'))
                   : GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
                         childAspectRatio: 1,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-                      itemCount: brandNames.length,
-            itemBuilder: (context, index) {
-                        final brand = brandNames[index];
-              return Card(
-                          elevation: 4,
-                shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                ),
-                child: InkWell(
-                            onTap: () => _openBrandCollection(brand),
-                            borderRadius: BorderRadius.circular(18),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                                Icon(Icons.directions_car, size: 48, color: Colors.blue[400]),
-                                const SizedBox(height: 16),
-                      Text(
-                                  brand,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                        ),
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
                       ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+                      itemCount: brandNames.length,
+                      itemBuilder: (context, index) {
+                        final brand = brandNames[index];
+                        return FutureBuilder<List<CarModel>>(
+                          future: _storageService.getCollection(brand),
+                          builder: (context, snapshot) {
+                            String logoUrl = '';
+                            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                              logoUrl = snapshot.data!.first.logoUrl;
+                            }
+                            return Card(
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: InkWell(
+                                onTap: () => _openBrandCollection(brand),
+                                borderRadius: BorderRadius.circular(18),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (logoUrl.isNotEmpty)
+                                      buildLogo(logoUrl)
+                                    else
+                                      Icon(Icons.directions_car, size: 48, color: Colors.blue[400]),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      brand,
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 20,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
         ),
       ],
     );
@@ -120,7 +138,14 @@ class _BrandCarsPage extends StatelessWidget {
   final String brand;
   final List<CarModel> cars;
   final String langCode;
-  const _BrandCarsPage({required this.brand, required this.cars, required this.langCode});
+  final VoidCallback onCollectionDeleted;
+  
+  const _BrandCarsPage({
+    required this.brand, 
+    required this.cars, 
+    required this.langCode,
+    required this.onCollectionDeleted,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -129,44 +154,102 @@ class _BrandCarsPage extends StatelessWidget {
       appBar: AppBar(title: Text(brand)),
       body: cars.isEmpty
           ? Center(child: Text(isVi ? 'Chưa có xe nào.' : 'No cars yet.'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: cars.length,
-              itemBuilder: (context, index) {
-                final car = cars[index];
-                return Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ListTile(
-                    leading: car.imagePath.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(car.imagePath),
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.directions_car, size: 40, color: Colors.grey),
-                            ),
-                          )
-                        : const Icon(Icons.directions_car, size: 40, color: Colors.grey),
-                    title: Text(car.carName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(car.year),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CarDetailPage(car: car, langCode: langCode),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+          : _BrandCarsList(
+              brand: brand, 
+              cars: cars, 
+              langCode: langCode,
+              onCollectionDeleted: onCollectionDeleted,
             ),
+    );
+  }
+}
+
+class _BrandCarsList extends StatefulWidget {
+  final String brand;
+  final List<CarModel> cars;
+  final String langCode;
+  final VoidCallback onCollectionDeleted;
+  
+  const _BrandCarsList({
+    required this.brand, 
+    required this.cars, 
+    required this.langCode,
+    required this.onCollectionDeleted,
+  });
+
+  @override
+  State<_BrandCarsList> createState() => _BrandCarsListState();
+}
+
+class _BrandCarsListState extends State<_BrandCarsList> {
+  late List<CarModel> cars;
+
+  @override
+  void initState() {
+    super.initState();
+    cars = List<CarModel>.from(widget.cars);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return cars.isEmpty
+        ? Center(child: Text(widget.langCode == 'vi' ? 'Chưa có xe nào.' : 'No cars yet.'))
+        : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: cars.length,
+            itemBuilder: (context, index) {
+              final car = cars[index];
+              return CarCard(
+                car: car,
+                langCode: widget.langCode,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CarDetailPage(car: car, langCode: widget.langCode),
+                    ),
+                  );
+                },
+                onDelete: () async {
+                  await StorageService().removeFromCollection(car, widget.brand);
+                  setState(() {
+                    cars.removeAt(index);
+                  });
+                  if (cars.isEmpty) {
+                    await StorageService().removeCollection(widget.brand);
+                    if (mounted) {
+                      Navigator.pop(context);
+                      widget.onCollectionDeleted(); // Call the callback to reload parent
+                    }
+                  }
+                },
+              );
+            },
+          );
+  }
+}
+
+Widget buildLogo(String logoUrl, {double width = 48, double height = 48}) {
+  if (logoUrl.startsWith('data:image/')) {
+    try {
+      final base64Str = logoUrl.split(',').last;
+      final bytes = base64Decode(base64Str);
+      return Image.memory(
+        bytes,
+        width: width,
+        height: height,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => Icon(Icons.error),
+      );
+    } catch (e) {
+      return Icon(Icons.error);
+    }
+  } else {
+    return Image.network(
+      logoUrl,
+      width: width,
+      height: height,
+      errorBuilder: (context, error, stackTrace) => Icon(Icons.error),
     );
   }
 } 

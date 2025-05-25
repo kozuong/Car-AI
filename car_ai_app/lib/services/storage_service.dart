@@ -109,48 +109,19 @@ class StorageService {
   }
 
   Future<void> saveCarToCollection(CarModel car, String collectionName) async {
-    try {
-      final prefs = await _prefs;
-      final cleanName = collectionName.trim();
-      final collectionKey = '${AppConstants.collectionKey}_$cleanName';
-      final collectionJson = prefs.getString(collectionKey) ?? '[]';
-      
-      // Validate car data
-      if (car.carName.isEmpty) {
-        throw Exception('Car name cannot be empty');
-      }
-
-      // Parse existing collection
-      List<Map<String, dynamic>> collection;
-      try {
-        collection = List<Map<String, dynamic>>.from(
-          jsonDecode(collectionJson) as List,
-        );
-      } catch (e) {
-        collection = [];
-      }
-
-      // Check if car already exists in collection
-      final exists = collection.any((item) => 
-        item['carName'] == car.carName && 
-        item['brand'] == car.brand
-      );
-
-      if (!exists) {
-        // Add new car to collection
-        final carJson = car.toJson();
-        collection.add(carJson);
-
-        // Save to SharedPreferences
-        final newCollectionJson = jsonEncode(collection);
-        final success = await prefs.setString(collectionKey, newCollectionJson);
-        if (!success) {
-          throw Exception('Failed to save to collection');
-        }
-      }
-    } catch (e) {
-      rethrow;
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'collection_$collectionName';
+    // Lấy collection hiện tại
+    final collection = await getCollection(collectionName);
+    // Nếu đã có thì ghi đè bằng bản mới nhất (ưu tiên bản mới nhất từ history)
+    final existingIndex = collection.indexWhere((c) => c.imagePath == car.imagePath);
+    if (existingIndex != -1) {
+      collection[existingIndex] = car;
+    } else {
+      collection.insert(0, car);
     }
+    final jsonList = collection.map((c) => c.toJson()).toList();
+    await prefs.setString(key, jsonEncode(jsonList));
   }
 
   Future<List<CarModel>> getCollection(String collectionName) async {
@@ -199,9 +170,25 @@ class StorageService {
         item['brand'] == car.brand
       );
 
-      // Save updated collection
-      final newCollectionJson = jsonEncode(collection);
-      await prefs.setString(collectionKey, newCollectionJson);
+      // If collection is empty, remove it completely
+      if (collection.isEmpty) {
+        // Remove from collections list
+        final collectionsJson = prefs.getString(AppConstants.collectionsKey) ?? '[]';
+        List<String> collections;
+        try {
+          collections = List<String>.from(jsonDecode(collectionsJson));
+          collections.remove(collectionName);
+          await prefs.setString(AppConstants.collectionsKey, jsonEncode(collections));
+        } catch (e) {
+          return;
+        }
+        // Remove the collection key itself
+        await prefs.remove(collectionKey);
+      } else {
+        // Save updated collection if not empty
+        final newCollectionJson = jsonEncode(collection);
+        await prefs.setString(collectionKey, newCollectionJson);
+      }
     } catch (e) {
       rethrow;
     }
@@ -257,5 +244,27 @@ class StorageService {
       .map((k) => k.replaceFirst('${AppConstants.collectionKey}_', '').trim())
       .where((name) => name.isNotEmpty && !name.contains(RegExp(r'[\\/:*?"<>|]')))
       .toList();
+  }
+
+  Future<void> removeFromHistory(CarModel car) async {
+    final prefs = await _prefs;
+    final historyJson = prefs.getString(AppConstants.historyKey) ?? '[]';
+    List<Map<String, dynamic>> history;
+    try {
+      history = List<Map<String, dynamic>>.from(jsonDecode(historyJson) as List);
+    } catch (e) {
+      history = [];
+    }
+    history.removeWhere((item) =>
+      (item['timestamp'] != null && car.timestamp != null && item['timestamp'] == car.timestamp) ||
+      (item['carName'] == car.carName && item['brand'] == car.brand)
+    );
+    await prefs.setString(AppConstants.historyKey, jsonEncode(history));
+  }
+
+  Future<void> removeCollection(String collectionName) async {
+    final prefs = await _prefs;
+    final collectionKey = '${AppConstants.collectionKey}_$collectionName';
+    await prefs.remove(collectionKey);
   }
 } 
