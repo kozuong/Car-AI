@@ -190,7 +190,7 @@ class ApiService {
               rarity: resultEn['rarity']?.toString() ?? '',
               rarityEn: resultEn['rarity']?.toString() ?? '',
               rarityVi: resultVi['rarity']?.toString() ?? '',
-              engineDetailEn: resultEn['engine_detail'] ?? '',
+              engineDetailEn: resultEn['engine_detail_en'] ?? resultEn['engine_detail'] ?? '',
               engineDetailVi: resultVi['engine_detail_vi'] ?? resultVi['engine_detail'] ?? '',
             );
           } catch (e) {

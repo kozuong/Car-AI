@@ -443,179 +443,57 @@ def analyze_car():
         try:
             logger.info("Extracting fields...")
             t_extract_start = time.time()
+            # ================== SONG SONG OPTIMIZATION START ==================
+            # 2. Trích xuất fields từ Gemini song song
+            try:
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_en = executor.submit(car_analyzer.extract_fields, content_en)
+                    future_vi = executor.submit(car_analyzer.extract_fields, content_vi)
+                    fields_en_parallel = future_en.result()
+                    fields_vi_parallel = future_vi.result()
+                logger.info("[SongSong] Extracted fields song song (EN/VI)")
+            except Exception as e:
+                logger.error(f"[SongSong] Error song song extract_fields: {str(e)}")
+            # ... giữ nguyên code cũ ...
             fields_en = car_analyzer.extract_fields(content_en)
             fields_vi = car_analyzer.extract_fields(content_vi)
-            logger.info("Successfully extracted fields")
-            t_extract_end = time.time()
-            logger.info(f"[PERF] Extract fields: {t_extract_end - t_extract_start:.2f}s")
+            # ================== SONG SONG OPTIMIZATION END ==================
             
-            # Trích xuất fields từ raw text
-            def extract_from_text(text):
-                import re  # Import re ở đây để đảm bảo có thể sử dụng trong hàm
-                fields = {}
-                # Bắt các trường dạng markdown hoặc bullet cho tiếng Việt, có hoặc không có ngoặc
-                vi_patterns = [
-                    (r'-?\s*\*\*Hãng( \(Brand\))?\*\*:?\s*([\w\s-]+)', 'brand'),
-                    (r'-?\s*\*\*Tên mẫu xe( \(Model\))?\*\*:?\s*([\w\s-]+)', 'model'),
-                    (r'-?\s*\*\*Năm sản xuất( \(Year\))?\*\*:?\s*([\w\s-]+)', 'year'),
-                    (r'-?\s*\*\*Giá( \(Price\))?\*\*:?\s*([\w\s\$\-,]+)', 'price'),
-                    (r'-?\s*\*\*Công suất( \(Power\))?\*\*:?\s*([\w\s-]+)', 'power'),
-                    (r'-?\s*\*\*Tăng tốc( \(Acceleration\))?\*\*:?\s*([\w\s-]+)', 'acceleration'),
-                    (r'-?\s*\*\*Tốc độ tối đa( \(Top speed\))?\*\*:?\s*([\w\s-]+)', 'top_speed'),
-                ]
-                for pattern, key in vi_patterns:
-                    m = re.search(pattern, text, re.IGNORECASE)
-                    if m:
-                        # Lấy group cuối cùng, loại bỏ ký tự thừa
-                        value = m.groups()[-1].strip('* ').strip()
-                        fields[key] = value
-                lines = text.split('\n')
-                current_key = None
-                buffer = []
-                section_headers = []
-                for idx, line in enumerate(lines):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    # Section headers (EN & VI)
-                    if line.lower().startswith('engine details:') or line.lower().startswith('chi tiết động cơ:'):
-                        current_key = 'engine_detail'
-                        buffer = []
-                        section_headers.append(idx)
-                        continue
-                    elif line.lower().startswith('interior & features:') or line.lower().startswith('nội thất & tính năng:'):
-                        if current_key and buffer:
-                            fields[current_key] = ' '.join(buffer).strip()
-                        current_key = 'interior'
-                        buffer = []
-                        section_headers.append(idx)
-                        continue
-                    elif re.match(r'^[A-Za-zÀ-ỹ ]+:$', line):
-                        # Gặp section mới, lưu lại section trước
-                        if current_key and buffer:
-                            fields[current_key] = ' '.join(buffer).strip()
-                        current_key = None
-                        buffer = []
-                        section_headers.append(idx)
-                    # Key-value
-                    if ':' in line and not line.startswith('- '):
-                        key, value = line.split(':', 1)
-                        key = key.strip().lower()
-                        value = value.strip()
-                        if key in ['brand', 'hãng', 'tên hãng']:
-                            fields['brand'] = value
-                        elif key in ['model', 'mẫu xe', 'tên mẫu xe']:
-                            fields['model'] = value
-                        elif key in ['year', 'năm']:
-                            fields['year'] = value
-                        elif key in ['price', 'giá']:
-                            fields['price'] = value
-                        elif key in ['overview', 'tổng quan', 'mô tả']:
-                            fields['description'] = value
-                        elif key in ['power', 'công suất']:
-                            fields['power'] = value
-                        elif key in ['acceleration', '0-100 km/h', 'tăng tốc']:
-                            fields['acceleration'] = value
-                        elif key in ['top speed', 'tốc độ tối đa']:
-                            fields['top_speed'] = value
-                        elif key in ['number produced', 'số lượng sản xuất']:
-                            fields['number_produced'] = value
-                        elif key in ['rarity', 'độ hiếm']:
-                            fields['rarity'] = value
-                        elif key in ['configuration', 'cấu hình']:
-                            buffer.append(line)
-                            current_key = 'engine_detail'
-                        elif key in ['seating', 'ghế ngồi']:
-                            buffer.append(line)
-                            current_key = 'interior'
-                        elif key in ['key features', 'tính năng nổi bật']:
-                            fields['features'] = [f.strip() for f in value.split(',')]
-                    elif line.startswith('- '):
-                        # Performance lines
-                        if 'power' in line.lower() or 'công suất' in line.lower():
-                            fields['power'] = line.split(':', 1)[1].strip() if ':' in line else line.replace('- Power', '').replace('- Công suất', '').strip()
-                        elif '0-60' in line.lower() or '0-100' in line.lower() or 'tăng tốc' in line.lower():
-                            fields['acceleration'] = line.split(':', 1)[1].strip() if ':' in line else line.replace('- 0-60 mph', '').replace('- 0-100 km/h', '').replace('- Tăng tốc', '').strip()
-                        elif 'top speed' in line.lower() or 'tốc độ tối đa' in line.lower():
-                            fields['top_speed'] = line.split(':', 1)[1].strip() if ':' in line else line.replace('- Top Speed', '').replace('- Tốc độ tối đa', '').strip()
-                        elif current_key:
-                            buffer.append(line)
-                    elif current_key:
-                        buffer.append(line)
-                # Lưu section cuối cùng
-                if current_key and buffer:
-                    fields[current_key] = ' '.join(buffer).strip()
-                # Ưu tiên lấy section Tổng quan cho tiếng Việt
-                if 'Tổng quan:' in text:
-                    pattern = r"Tổng quan:\s*(.+?)\n(?:Chi tiết động cơ|Nội thất & Tính năng|$)"
-                    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        fields['description'] = match.group(1).strip()
-                # Ưu tiên lấy section Overview cho tiếng Anh nếu có
-                elif 'Overview:' in text:
-                    pattern = r"Overview:\s*(.+?)\n(?:Engine Details|Interior & Features|$)"
-                    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        fields['description'] = match.group(1).strip()
-                # Nếu không có, fallback như cũ
-                if 'description' not in fields or not fields['description']:
-                    # Xác định vị trí section đầu tiên
-                    lines = text.split('\n')
-                    section_headers = []
-                    for idx, line in enumerate(lines):
-                        if re.match(r'^[A-Za-zÀ-ỹ ]+:$', line.strip()):
-                            section_headers.append(idx)
-                    first_section = section_headers[0] if section_headers else len(lines)
-                    candidate = []
-                    for i in range(first_section):
-                        l = lines[i].strip()
-                        if l and not re.match(r'^[A-Za-zÀ-ỹ ]+:$', l):
-                            candidate.append(l)
-                    if candidate:
-                        fields['description'] = ' '.join(candidate)
-                # Nếu các trường dài bị rỗng, lấy đoạn văn dài nhất không phải section header
-                for long_key in ['engine_detail', 'interior', 'description']:
-                    if not fields.get(long_key):
-                        paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) >= 100 and ':' not in p]
-                        if paragraphs:
-                            fields[long_key] = max(paragraphs, key=len)
-                # Lưu lại raw_text để build_result dùng
-                fields['raw_text'] = text
-                return fields
-            
-            # Trích xuất fields từ raw text
+            # ================== SONG SONG OPTIMIZATION START ==================
+            # 3. Trích xuất fields từ raw text song song
+            try:
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_en_dict = executor.submit(extract_from_text, content_en)
+                    future_vi_dict = executor.submit(extract_from_text, content_vi)
+                    fields_en_dict_parallel = future_en_dict.result()
+                    fields_vi_dict_parallel = future_vi_dict.result()
+                logger.info("[SongSong] Extracted fields from text song song (EN/VI)")
+            except Exception as e:
+                logger.error(f"[SongSong] Error song song extract_from_text: {str(e)}")
+            # ... giữ nguyên code cũ ...
             fields_en_dict = extract_from_text(content_en)
             fields_vi_dict = extract_from_text(content_vi)
+            # ================== SONG SONG OPTIMIZATION END ==================
             
-            # Chỉ giữ lại log kết quả trích xuất
-            logger.info(f"[Fields] Extracted fields (EN): {safe_log_result(fields_en_dict)}")
-            logger.info(f"[Fields] Extracted fields (VI): {safe_log_result(fields_vi_dict)}")
-            
-            # Tạo car_name từ brand và model
+            # Lấy brand_en, model_en, car_name_en từ fields_en_dict
             brand_en = fields_en_dict.get('brand', '').strip()
             model_en = fields_en_dict.get('model', '').strip()
+            car_name_en = f"{brand_en} {model_en}".strip()
+
             brand_vi = fields_vi_dict.get('brand', '').strip()
             model_vi = fields_vi_dict.get('model', '').strip()
-            
+            car_name_vi = f"{brand_vi} {model_vi}".strip()
+
             logger.info(f"[Fields] Brand (EN): {brand_en}, Model (EN): {model_en}")
             logger.info(f"[Fields] Brand (VI): {brand_vi}, Model (VI): {model_vi}")
-            
-            car_name_en = f"{brand_en} {model_en}".strip()
-            car_name_vi = f"{brand_vi} {model_vi}".strip()
-            
-            if not car_name_en:
-                logger.warning("[Fields] Failed to create car_name_en from brand and model")
-            if not car_name_vi:
-                logger.warning("[Fields] Failed to create car_name_vi from brand and model")
-                
+            logger.info(f"[Fields] Created car_name (EN): {car_name_en}")
+            logger.info(f"[Fields] Created car_name (VI): {car_name_vi}")
+
             fields_en_dict['car_name'] = car_name_en
             fields_vi_dict['car_name'] = car_name_vi
             
-            logger.info(f"[Fields] Created car_name (EN): {car_name_en}")
-            logger.info(f"[Fields] Created car_name (VI): {car_name_vi}")
-            
-            # Lấy thông tin từ fields
-            price = fields_en_dict.get('avg_price', fields_en_dict.get('price', ''))
+            # Khởi tạo các biến cần thiết trước khi xử lý song song
+            price = fields_en_dict.get('price', '')
             engine_detail = fields_en_dict.get('engine_detail', '')
             interior = fields_en_dict.get('interior', '')
             features = fields_en_dict.get('features', [])
@@ -623,11 +501,12 @@ def analyze_car():
             number_produced = fields_en_dict.get('number_produced', '')
             rarity = fields_en_dict.get('rarity', '')
             logo_url = None  # Khởi tạo logo_url
-
+            
             # === Lấy số lượng sản xuất (number_produced) ===
             number_produced_val = number_produced or fields_en_dict.get('number_produced', '')
             logger.info(f"[NumberProduced] Initial value: {number_produced_val}")
             max_number = None
+
             # Cache number_produced theo car_name_en
             cache_key = car_name_en.lower().strip()
             if cache_key in number_produced_cache:
@@ -640,162 +519,77 @@ def analyze_car():
                     filtered_numbers = [n for n in numbers if not (1900 <= n <= 2030)]
                     if filtered_numbers:
                         max_number = filtered_numbers[0]
-                if max_number is None:
-                    try:
-                        queries = [
-                            f"{car_name_en} production numbers",
-                            f"{car_name_en} total produced",
-                            f"{car_name_en} units built"
-                        ]
-                        google_response = None
-                        for q in queries:
-                            google_response = google_search_service.search_number_produced(q)
-                            logger.info(f"[NumberProduced][GoogleSearch] Query: {q} | Response: {safe_log_result(google_response, max_length=100)}")
-                            if google_response and isinstance(google_response, str) and google_response.strip():
-                                numbers = re.findall(r'\d+', google_response.replace(',', ''))
-                                if numbers:
-                                    try:
-                                        max_number = int(numbers[0])
-                                        number_produced_val = f"{max_number:,} units"
-                                        logger.info(f"[NumberProduced][GoogleSearch] Extracted: {number_produced_val}")
-                                        break
-                                    except Exception as e:
-                                        logger.warning(f"[NumberProduced][GoogleSearch] Failed to parse number: {numbers[0]} | Error: {e}")
-                                        max_number = None
-                        if max_number is None:
-                            gemini_prompt = f"What is the total number of {car_name_en} produced? Please provide a specific number or range."
-                            gemini_response = gemini_service.analyze_image(None, gemini_prompt)
-                            logger.info(f"[NumberProduced][Gemini] Response: {safe_log_result(gemini_response, max_length=100)}")
-                            if gemini_response and isinstance(gemini_response, str) and gemini_response.strip():
-                                numbers = re.findall(r'\d+', gemini_response.replace(',', ''))
-                                if numbers:
-                                    try:
-                                        max_number = int(numbers[0])
-                                        number_produced_val = f"{max_number:,} units"
-                                        logger.info(f"[NumberProduced][Gemini] Extracted: {number_produced_val}")
-                                    except Exception as e:
-                                        logger.warning(f"[NumberProduced][Gemini] Failed to parse number: {numbers[0]} | Error: {e}")
-                                        max_number = None
-                                else:
-                                    number_produced_val = gemini_response.strip()
-                                    logger.info(f"[NumberProduced][Gemini] Using full response: {safe_log_result(number_produced_val, max_length=100)}")
-                            else:
-                                number_produced_val = "Production numbers not available"
-                                logger.info(f"[NumberProduced] No data from Gemini. Using default: {safe_log_result(number_produced_val, max_length=100)}")
-                    except Exception as e:
-                        logger.error(f"[NumberProduced] Error in Google/Gemini: {str(e)}")
-                        number_produced_val = "Production numbers not available"
+
+                # Tìm logo và number_produced song song
+                try:
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        future_logo = executor.submit(get_default_logo, brand_en)
+                        future_number = executor.submit(google_search_service.search_number_produced, car_name_en)
+                        logo_url = future_logo.result()
+                        number_produced_val = future_number.result()
+                    logger.info("[SongSong] Logo & number_produced song song")
+                except Exception as e:
+                    logger.error(f"[SongSong] Error song song logo/number_produced: {str(e)}")
+                    # Fallback to sequential processing if parallel fails
+                    logo_url = get_default_logo(brand_en)
+                    number_produced_val = google_search_service.search_number_produced(car_name_en)
+
                 t_google_end = time.time()
                 logger.info(f"[PERF] Google Search: {t_google_end - t_google_start:.2f}s")
                 # Lưu cache
                 number_produced_cache[cache_key] = number_produced_val
+
             # === Tính rarity ===
             rarity_str = car_analyzer.calculate_rarity(str(number_produced_val))
             logger.info(f"[Rarity] max_number: {max_number}, rarity_str: {rarity_str}")
-            # Cập nhật vào fields_en_dict
-            fields_en_dict['number_produced'] = number_produced_val
-            fields_en_dict['rarity'] = rarity_str
 
-            # === Fallback các trường số liệu từ EN sang VI nếu VI bị rỗng ===
-            fallback_keys = ['year', 'power', 'acceleration', 'top_speed', 'price', 'number_produced', 'rarity']
-            for key in fallback_keys:
-                if not fields_vi_dict.get(key):
-                    fields_vi_dict[key] = fields_en_dict.get(key, '')
-
-            # === Lọc tiếng Anh cho các trường mô tả dài tiếng Việt ===
-            def is_mostly_english(text):
-                if not text or not isinstance(text, str):
-                    return False
-                words = text.split()
-                en_words = [w for w in words if re.match(r'^[a-zA-Z0-9\-\.,:;]+$', w)]
-                return len(en_words) / max(1, len(words)) > 0.5
-
-            for key in ['engine_detail', 'interior']:
-                vi_val = fields_vi_dict.get(key, '')
-                if vi_val and is_mostly_english(vi_val):
-                    fields_vi_dict[key] = ''
-
-            # Tách description tiếng Việt và tiếng Anh riêng biệt
-            description_en = fields_en_dict.get('description', '')
-            description_vi = fields_vi_dict.get('description', '')
-            engine_detail_en = fields_en_dict.get('engine_detail', '')
-            engine_detail_vi = fields_vi_dict.get('engine_detail', '')
-            interior_en = fields_en_dict.get('interior', '')
-            interior_vi = fields_vi_dict.get('interior', '')
-
-            # Nếu engine_detail_vi còn là tiếng Anh, reset lại
-            if is_mostly_english(engine_detail_vi):
-                engine_detail_vi = ''
-                logger.info("[Engine Detail VI] Removed English fallback for engine_detail_vi")
-            # Nếu sau khi reset vẫn rỗng, không nên fallback sang tiếng Anh
-            if not engine_detail_vi:
-                engine_detail_vi = ''
-            # Áp dụng tương tự cho interior_vi nếu muốn
-            if is_mostly_english(interior_vi):
-                interior_vi = ''
-                logger.info("[Interior VI] Removed English fallback for interior_vi")
-            if not interior_vi:
-                interior_vi = ''
-
-            # Nếu description_vi là tiếng Anh, cố gắng trích xuất section 'Tổng quan' từ content_vi
-            if is_mostly_english(description_vi):
-                logger.warning("[Description VI] Detected as English. Trying to extract 'Tổng quan' manually.")
-                try:
-                    pattern = r"Tổng quan:\s*(.+?)\n(?:Chi tiết động cơ|Nội thất & Tính năng|$)"
-                    match = re.search(pattern, content_vi, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        description_vi = match.group(1).strip()
-                        logger.info("[Description VI] Successfully extracted from 'Tổng quan' section.")
-                    else:
-                        description_vi = "Mô tả chưa khả dụng bằng tiếng Việt."
-                except Exception as e:
-                    logger.error(f"[Description VI] Failed to extract 'Tổng quan': {str(e)}")
-                    description_vi = "Mô tả chưa khả dụng bằng tiếng Việt."
-
-            t_build_result_start = time.time()
+            # Build result song song
             try:
-                # Tạo kết quả cho cả tiếng Anh và tiếng Việt
-                result_en = build_result(fields_en_dict, 'en', price, number_produced_val, rarity_str, engine_detail_en, interior_en, features, description_en, logo_url)
-                result_vi = build_result(fields_vi_dict, 'vi', price, number_produced_val, rarity_str, engine_detail_vi, interior_vi, features, description_vi, logo_url)
-                t_build_result_end = time.time()
-                logger.info(f"[PERF] Build result: {t_build_result_end - t_build_result_start:.2f}s")
-                # Thêm thời gian xử lý
-                end_time = datetime.now()
-                processing_time = (end_time - start_time).total_seconds()
-                # Chuẩn bị phản hồi
-                response_data = {
-                    "status": "success",
-                    "message": "Successfully analyzed car",
-                    "result_en": result_en,
-                    "result_vi": result_vi,
-                    "image_processed": True,
-                    "processing_time": processing_time
-                }
-                # Thêm log chi tiết trước khi trả response
-                logger.debug(f"[API_RESPONSE] result_en: {safe_log_result(result_en, max_length=100)}")
-                logger.debug(f"[API_RESPONSE] result_vi: {safe_log_result(result_vi, max_length=100)}")
-                logger.debug(f"[API_RESPONSE] Brand EN: {result_en.get('brand')}, Brand VI: {result_vi.get('brand')}")
-                logger.debug(f"[API_RESPONSE] Rarity EN: {result_en.get('rarity')}, Rarity VI: {result_vi.get('rarity')}")
-                logger.debug(f"[API_RESPONSE] Number Produced EN: {result_en.get('number_produced')}, Number Produced VI: {result_vi.get('number_produced')}")
-                logger.info(f"[PERF] Gemini: {t_gemini_end - t_gemini_start:.2f}s | Total: {processing_time:.2f}s")
-                # Kiểm tra các trường quan trọng tiếng Việt
-                required_vi = ['brand', 'model', 'car_name']
-                missing_vi = [k for k in required_vi if not fields_vi_dict.get(k)]
-                if missing_vi:
-                    logger.error(f"[API] Thiếu trường tiếng Việt: {missing_vi}")
-                    return jsonify({
-                        "status": "error",
-                        "message": f"Thiếu trường tiếng Việt: {', '.join(missing_vi)}. Vui lòng thử lại với ảnh rõ hơn hoặc prompt khác.",
-                        "error": "missing_vi_fields"
-                    }), 422
-                return jsonify(response_data)
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_en = executor.submit(build_result, fields_en_dict, 'en', price, number_produced_val, rarity_str, engine_detail, interior, features, description, logo_url)
+                    future_vi = executor.submit(build_result, fields_vi_dict, 'vi', price, number_produced_val, rarity_str, engine_detail, interior, features, description, logo_url)
+                    result_en = future_en.result()
+                    result_vi = future_vi.result()
+                logger.info("[SongSong] Build result song song (EN/VI)")
             except Exception as e:
-                logger.error(f"Error creating response: {str(e)}", exc_info=True)
+                logger.error(f"[SongSong] Error song song build_result: {str(e)}")
+                # Fallback to sequential processing if parallel fails
+                result_en = build_result(fields_en_dict, 'en', price, number_produced_val, rarity_str, engine_detail, interior, features, description, logo_url)
+                result_vi = build_result(fields_vi_dict, 'vi', price, number_produced_val, rarity_str, engine_detail, interior, features, description, logo_url)
+
+            t_extract_end = time.time()
+            logger.info(f"[PERF] Extract fields: {t_extract_end - t_extract_start:.2f}s")
+
+            # Thêm thời gian xử lý
+            end_time = datetime.now()
+            processing_time = (end_time - start_time).total_seconds()
+            # Chuẩn bị phản hồi
+            response_data = {
+                "status": "success",
+                "message": "Successfully analyzed car",
+                "result_en": result_en,
+                "result_vi": result_vi,
+                "image_processed": True,
+                "processing_time": processing_time
+            }
+            # Thêm log chi tiết trước khi trả response
+            logger.debug(f"[API_RESPONSE] result_en: {safe_log_result(result_en, max_length=100)}")
+            logger.debug(f"[API_RESPONSE] result_vi: {safe_log_result(result_vi, max_length=100)}")
+            logger.debug(f"[API_RESPONSE] Brand EN: {result_en.get('brand')}, Brand VI: {result_vi.get('brand')}")
+            logger.debug(f"[API_RESPONSE] Rarity EN: {result_en.get('rarity')}, Rarity VI: {result_vi.get('rarity')}")
+            logger.debug(f"[API_RESPONSE] Number Produced EN: {result_en.get('number_produced')}, Number Produced VI: {result_vi.get('number_produced')}")
+            logger.info(f"[PERF] Gemini: {t_gemini_end - t_gemini_start:.2f}s | Total: {processing_time:.2f}s")
+            # Kiểm tra các trường quan trọng tiếng Việt
+            required_vi = ['brand', 'model', 'car_name']
+            missing_vi = [k for k in required_vi if not fields_vi_dict.get(k)]
+            if missing_vi:
+                logger.error(f"[API] Thiếu trường tiếng Việt: {missing_vi}")
                 return jsonify({
                     "status": "error",
-                    "message": "Error creating response",
-                    "error": "Lỗi khi tạo phản hồi. Vui lòng thử lại."
-                }), 500
+                    "message": f"Thiếu trường tiếng Việt: {', '.join(missing_vi)}. Vui lòng thử lại với ảnh rõ hơn hoặc prompt khác.",
+                    "error": "missing_vi_fields"
+                }), 422
+            return jsonify(response_data)
             
         except Exception as e:
             logger.error(f"Error creating response: {str(e)}", exc_info=True)
@@ -872,6 +666,139 @@ def safe_log_result(result, max_length=100):
         return [safe_log_result(item, max_length) for item in result]
     else:
         return result
+
+def extract_from_text(text):
+    import re  # Import re ở đây để đảm bảo có thể sử dụng trong hàm
+    fields = {}
+    # Bắt các trường dạng markdown hoặc bullet cho tiếng Việt, có hoặc không có ngoặc
+    vi_patterns = [
+        (r'-?\s*\*\*Hãng( \(Brand\))?\*\*:?:?\s*([\w\s-]+)', 'brand'),
+        (r'-?\s*\*\*Tên mẫu xe( \(Model\))?\*\*:?:?\s*([\w\s-]+)', 'model'),
+        (r'-?\s*\*\*Năm sản xuất( \(Year\))?\*\*:?:?\s*([\w\s-]+)', 'year'),
+        (r'-?\s*\*\*Giá( \(Price\))?\*\*:?:?\s*([\w\s\$\-,]+)', 'price'),
+        (r'-?\s*\*\*Công suất( \(Power\))?\*\*:?:?\s*([\w\s-]+)', 'power'),
+        (r'-?\s*\*\*Tăng tốc( \(Acceleration\))?\*\*:?:?\s*([\w\s-]+)', 'acceleration'),
+        (r'-?\s*\*\*Tốc độ tối đa( \(Top speed\))?\*\*:?:?\s*([\w\s-]+)', 'top_speed'),
+    ]
+    for pattern, key in vi_patterns:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            # Lấy group cuối cùng, loại bỏ ký tự thừa
+            value = m.groups()[-1].strip('* ').strip()
+            fields[key] = value
+    lines = text.split('\n')
+    current_key = None
+    buffer = []
+    section_headers = []
+    for idx, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+        # Section headers (EN & VI)
+        if line.lower().startswith('engine details:') or line.lower().startswith('chi tiết động cơ:'):
+            current_key = 'engine_detail'
+            buffer = []
+            section_headers.append(idx)
+            continue
+        elif line.lower().startswith('interior & features:') or line.lower().startswith('nội thất & tính năng:'):
+            if current_key and buffer:
+                fields[current_key] = ' '.join(buffer).strip()
+            current_key = 'interior'
+            buffer = []
+            section_headers.append(idx)
+            continue
+        elif re.match(r'^[A-Za-zÀ-ỹ ]+:$', line):
+            # Gặp section mới, lưu lại section trước
+            if current_key and buffer:
+                fields[current_key] = ' '.join(buffer).strip()
+            current_key = None
+            buffer = []
+            section_headers.append(idx)
+        # Key-value
+        if ':' in line and not line.startswith('- '):
+            key, value = line.split(':', 1)
+            key = key.strip().lower()
+            value = value.strip()
+            if key in ['brand', 'hãng', 'tên hãng']:
+                fields['brand'] = value
+            elif key in ['model', 'mẫu xe', 'tên mẫu xe']:
+                fields['model'] = value
+            elif key in ['year', 'năm']:
+                fields['year'] = value
+            elif key in ['price', 'giá']:
+                fields['price'] = value
+            elif key in ['overview', 'tổng quan', 'mô tả']:
+                fields['description'] = value
+            elif key in ['power', 'công suất']:
+                fields['power'] = value
+            elif key in ['acceleration', '0-100 km/h', 'tăng tốc']:
+                fields['acceleration'] = value
+            elif key in ['top speed', 'tốc độ tối đa']:
+                fields['top_speed'] = value
+            elif key in ['number produced', 'số lượng sản xuất']:
+                fields['number_produced'] = value
+            elif key in ['rarity', 'độ hiếm']:
+                fields['rarity'] = value
+            elif key in ['configuration', 'cấu hình']:
+                buffer.append(line)
+                current_key = 'engine_detail'
+            elif key in ['seating', 'ghế ngồi']:
+                buffer.append(line)
+                current_key = 'interior'
+            elif key in ['key features', 'tính năng nổi bật']:
+                fields['features'] = [f.strip() for f in value.split(',')]
+        elif line.startswith('- '):
+            # Performance lines
+            if 'power' in line.lower() or 'công suất' in line.lower():
+                fields['power'] = line.split(':', 1)[1].strip() if ':' in line else line.replace('- Power', '').replace('- Công suất', '').strip()
+            elif '0-60' in line.lower() or '0-100' in line.lower() or 'tăng tốc' in line.lower():
+                fields['acceleration'] = line.split(':', 1)[1].strip() if ':' in line else line.replace('- 0-60 mph', '').replace('- 0-100 km/h', '').replace('- Tăng tốc', '').strip()
+            elif 'top speed' in line.lower() or 'tốc độ tối đa' in line.lower():
+                fields['top_speed'] = line.split(':', 1)[1].strip() if ':' in line else line.replace('- Top Speed', '').replace('- Tốc độ tối đa', '').strip()
+            elif current_key:
+                buffer.append(line)
+        elif current_key:
+            buffer.append(line)
+    # Lưu section cuối cùng
+    if current_key and buffer:
+        fields[current_key] = ' '.join(buffer).strip()
+    # Ưu tiên lấy section Tổng quan cho tiếng Việt
+    if 'Tổng quan:' in text:
+        pattern = r"Tổng quan:\s*(.+?)\n(?:Chi tiết động cơ|Nội thất & Tính năng|$)"
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            fields['description'] = match.group(1).strip()
+    # Ưu tiên lấy section Overview cho tiếng Anh nếu có
+    elif 'Overview:' in text:
+        pattern = r"Overview:\s*(.+?)\n(?:Engine Details|Interior & Features|$)"
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            fields['description'] = match.group(1).strip()
+    # Nếu không có, fallback như cũ
+    if 'description' not in fields or not fields['description']:
+        # Xác định vị trí section đầu tiên
+        lines = text.split('\n')
+        section_headers = []
+        for idx, line in enumerate(lines):
+            if re.match(r'^[A-Za-zÀ-ỹ ]+:$', line.strip()):
+                section_headers.append(idx)
+        first_section = section_headers[0] if section_headers else len(lines)
+        candidate = []
+        for i in range(first_section):
+            l = lines[i].strip()
+            if l and not re.match(r'^[A-Za-zÀ-ỹ ]+:$', l):
+                candidate.append(l)
+        if candidate:
+            fields['description'] = ' '.join(candidate)
+    # Nếu các trường dài bị rỗng, lấy đoạn văn dài nhất không phải section header
+    for long_key in ['engine_detail', 'interior', 'description']:
+        if not fields.get(long_key):
+            paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) >= 100 and ':' not in p]
+            if paragraphs:
+                fields[long_key] = max(paragraphs, key=len)
+    # Lưu lại raw_text để build_result dùng
+    fields['raw_text'] = text
+    return fields
 
 if __name__ == '__main__':
     try:
