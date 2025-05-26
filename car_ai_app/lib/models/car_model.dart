@@ -304,7 +304,10 @@ class CarModel {
       case 'topSpeed':
         vi = topSpeedVi; en = topSpeedEn; break;
       case 'engine':
-        vi = engineVi; en = engineEn; break;
+      case 'engine_detail':
+        vi = engineDetailVi.isNotEmpty ? engineDetailVi : engineVi;
+        en = engineDetailEn.isNotEmpty ? engineDetailEn : engineEn;
+        break;
       case 'interior':
         vi = interiorVi; en = interiorEn; break;
       case 'description':
